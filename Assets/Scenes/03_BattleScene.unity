@@ -1999,12 +1999,13 @@ GameObject:
   m_Component:
   - component: {fileID: 543883473013521507}
   - component: {fileID: 920866893401515739}
+  - component: {fileID: 920866893401515745}
   - component: {fileID: 920866893401515738}
   - component: {fileID: 920866893401515742}
-  - component: {fileID: 920866893401515740}
   - component: {fileID: 920866893401515744}
   - component: {fileID: 920866893401515741}
   - component: {fileID: 920866893401515743}
+  - component: {fileID: 920866893401515740}
   m_Layer: 9
   m_Name: Enemy
   m_TagString: Untagged
@@ -2027,9 +2028,6 @@ MonoBehaviour:
   maxHealth: 10000000
   weightClass: 0
   animator: {fileID: 0}
-  normalKnockbackMultiplier: 1
-  heavyKnockbackMultiplier: 0.4
-  bossKnockbackMultiplier: 0
   lightKnockbackDuration: 0.08
   heavyKnockbackDuration: 0.4
 --- !u!65 &920866893401515739
@@ -2156,7 +2154,21 @@ MonoBehaviour:
   detectionRange: 10
   attackRange: 2
   chaseResumeRange: 2.3
+  attackCooldown: 1.2
+  heavyAttackChance: 0.3
   rotationSpeed: 10
+--- !u!114 &920866893401515745
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 920866893401515737}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02cd8292ebd8f43458f2c8c468fe5f2a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyCore
 --- !u!4 &924024142092574347
 Transform:
   m_ObjectHideFlags: 0

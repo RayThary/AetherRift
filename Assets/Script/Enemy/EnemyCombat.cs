@@ -1,6 +1,6 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
+[RequireComponent(typeof(EnemyCore))]
 public class EnemyCombat : MonoBehaviour, IAttackStateProvider
 {
     [Header("Reference")]
@@ -24,42 +24,34 @@ public class EnemyCombat : MonoBehaviour, IAttackStateProvider
     [SerializeField] private HitImpact heavySecondAttackImpact = HitImpact.Heavy;
     [SerializeField] private float heavySecondAttackKnockbackDistance = 0.8f;
 
+    private EnemyCore enemyCore;
+
     private bool isAttacking;
     private bool hasEnteredAttackState;
 
+    public bool IsAttacking => isAttacking;
     public int CurrentAttackDamage { get; private set; }
     public HitImpact CurrentAttackImpact { get; private set; } = HitImpact.None;
     public float CurrentAttackKnockbackDistance { get; private set; }
 
     private void Awake()
     {
+        enemyCore = GetComponent<EnemyCore>();
+
         if (animator == null)
             animator = GetComponentInChildren<Animator>();
     }
 
     private void Update()
     {
-        HandleTestInput();
         UpdateAttackState();
     }
 
-    private void HandleTestInput()
+    public bool TryStartLightAttack()
     {
-        if (Keyboard.current == null || isAttacking)
-            return;
+        if (isAttacking || !enemyCore.TryEnterAttack())
+            return false;
 
-        if (Keyboard.current.digit1Key.wasPressedThisFrame)
-        {
-            StartLightAttack();
-            return;
-        }
-
-        if (Keyboard.current.digit2Key.wasPressedThisFrame)
-            StartHeavyAttack();
-    }
-
-    private void StartLightAttack()
-    {
         isAttacking = true;
         hasEnteredAttackState = false;
 
@@ -67,10 +59,15 @@ public class EnemyCombat : MonoBehaviour, IAttackStateProvider
 
         ResetAttackTriggers();
         animator.SetTrigger("LightAttack");
+
+        return true;
     }
 
-    private void StartHeavyAttack()
+    public bool TryStartHeavyAttack()
     {
+        if (isAttacking || !enemyCore.TryEnterAttack())
+            return false;
+
         isAttacking = true;
         hasEnteredAttackState = false;
 
@@ -78,6 +75,8 @@ public class EnemyCombat : MonoBehaviour, IAttackStateProvider
 
         ResetAttackTriggers();
         animator.SetTrigger("HeavyAttack");
+
+        return true;
     }
 
     public void SetLightSecondAttack()
@@ -143,16 +142,23 @@ public class EnemyCombat : MonoBehaviour, IAttackStateProvider
         if (!isAttacking)
             return;
 
-        EndAttack();
+        ClearAttackState();
+        ResetAttackTriggers();
+        enemyCore.ExitAttack();
     }
 
     private void EndAttack()
     {
+        ClearAttackState();
+        ResetAttackTriggers();
+        enemyCore.ExitAttack();
+    }
+
+    private void ClearAttackState()
+    {
         isAttacking = false;
         hasEnteredAttackState = false;
-
         SetCurrentAttack(0, HitImpact.None, 0f);
-        ResetAttackTriggers();
     }
 
     private void ResetAttackTriggers()

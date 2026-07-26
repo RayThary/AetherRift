@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 
 public enum EnemyWeightClass
 {
@@ -7,75 +8,65 @@ public enum EnemyWeightClass
     Boss
 }
 
+[RequireComponent(typeof(EnemyCore))]
 public class EnemyHealth : MonoBehaviour, IDamageable
 {
     [Header("Health")]
     [SerializeField] private int maxHealth = 100;
 
-    [Header("Reaction")]
+    [Header("Weight")]
     [SerializeField] private EnemyWeightClass weightClass = EnemyWeightClass.Normal;
-    [SerializeField] private Animator animator;
 
-    [Header("Weight Multipliers")]
-    [SerializeField] private float normalKnockbackMultiplier = 1f;
-    [SerializeField] private float heavyKnockbackMultiplier = 0.4f;
-    [SerializeField] private float bossKnockbackMultiplier;
+    [Header("Reference")]
+    [SerializeField] private Animator animator;
 
     [Header("Knockback")]
     [SerializeField] private float lightKnockbackDuration = 0.08f;
     [SerializeField] private float heavyKnockbackDuration = 0.4f;
 
+    private EnemyCore enemyCore;
     private IAttackStateProvider attackStateProvider;
+    private NavMeshAgent agent;
 
     private int currentHealth;
 
-    private Vector3 knockbackDirection;
+    private bool isHitReacting;
+    private bool hasEnteredHitState;
 
+    private HitImpact currentHitReaction = HitImpact.None;
+    private Vector3 knockbackDirection;
     private float currentKnockbackDistance;
     private float currentKnockbackDuration;
     private float remainingKnockbackTime;
 
-    private HitImpact currentHitReaction = HitImpact.None;
-
-    private bool isHitReacting;
-    private bool hasEnteredHitState;
-    private bool isDead;
-
-    public bool CanAct => !isHitReacting && !isDead;
-    public bool IsDead => isDead;
-
     private void Awake()
     {
-        currentHealth = maxHealth;
+        enemyCore = GetComponent<EnemyCore>();
         attackStateProvider = GetComponent<IAttackStateProvider>();
+        agent = GetComponent<NavMeshAgent>();
 
         if (animator == null)
             animator = GetComponentInChildren<Animator>();
 
-        if (animator == null)
-            Debug.LogError("[EnemyHealth] Animator를 찾을 수 없습니다.");
+        currentHealth = maxHealth;
     }
 
     private void Update()
     {
-        if (!isHitReacting || isDead)
-            return;
-
         UpdateHitState();
         UpdateKnockback();
     }
 
     public void TakeDamage(DamageInfo damageInfo)
     {
-        if (damageInfo.Damage <= 0 || isDead)
+        if (enemyCore.IsDead)
             return;
 
-        currentHealth = Mathf.Max(currentHealth - damageInfo.Damage, 0);
-
-        Debug.Log($"[EnemyHealth] {gameObject.name} 피해: {damageInfo.Damage}, 남은 체력: {currentHealth}");
+        currentHealth -= damageInfo.Damage;
 
         if (currentHealth <= 0)
         {
+            currentHealth = 0;
             Die();
             return;
         }
@@ -98,51 +89,29 @@ public class EnemyHealth : MonoBehaviour, IDamageable
             attackStateProvider.CancelAttackForHit();
 
         float knockbackDistance = damageInfo.KnockbackDistance * GetKnockbackMultiplier();
-
         StartHitReaction(resolvedReaction, damageInfo.HitDirection, knockbackDistance);
-    }
-
-    private float GetKnockbackMultiplier()
-    {
-        switch (weightClass)
-        {
-            case EnemyWeightClass.Normal:
-                return Mathf.Max(normalKnockbackMultiplier, 0f);
-
-            case EnemyWeightClass.Heavy:
-                return Mathf.Max(heavyKnockbackMultiplier, 0f);
-
-            case EnemyWeightClass.Boss:
-                return Mathf.Max(bossKnockbackMultiplier, 0f);
-
-            default:
-                return 0f;
-        }
     }
 
     private void StartHitReaction(HitImpact reaction, Vector3 hitDirection, float knockbackDistance)
     {
-        if (animator == null)
-            return;
-
         currentHitReaction = reaction;
-        currentKnockbackDistance = Mathf.Max(knockbackDistance, 0f);
 
         knockbackDirection = hitDirection;
         knockbackDirection.y = 0f;
 
-        if (knockbackDirection.sqrMagnitude <= 0.01f)
-            knockbackDirection = -transform.forward;
+        if (knockbackDirection.sqrMagnitude > 0.01f)
+            knockbackDirection.Normalize();
 
-        knockbackDirection.Normalize();
+        currentKnockbackDistance = Mathf.Max(knockbackDistance, 0f);
+        currentKnockbackDuration = reaction == HitImpact.Light ? lightKnockbackDuration : heavyKnockbackDuration;
+        currentKnockbackDuration = Mathf.Max(currentKnockbackDuration, 0.01f);
 
-        float knockbackDuration = reaction == HitImpact.Light ? lightKnockbackDuration : heavyKnockbackDuration;
-
-        currentKnockbackDuration = Mathf.Max(knockbackDuration, 0.01f);
         remainingKnockbackTime = currentKnockbackDistance > 0f ? currentKnockbackDuration : 0f;
 
         isHitReacting = true;
         hasEnteredHitState = false;
+
+        enemyCore.EnterHit();
 
         ResetHitTriggers();
 
@@ -154,6 +123,9 @@ public class EnemyHealth : MonoBehaviour, IDamageable
 
     private void UpdateHitState()
     {
+        if (!isHitReacting)
+            return;
+
         AnimatorStateInfo currentState = animator.GetCurrentAnimatorStateInfo(0);
 
         if (!hasEnteredHitState)
@@ -164,25 +136,13 @@ public class EnemyHealth : MonoBehaviour, IDamageable
             return;
         }
 
-        if (IsAnimatorInHitState())
+        if (IsAnimatorHit())
             return;
 
         EndHitReaction();
     }
 
-    private void UpdateKnockback()
-    {
-        if (!hasEnteredHitState || remainingKnockbackTime <= 0f)
-            return;
-
-        float moveTime = Mathf.Min(Time.deltaTime, remainingKnockbackTime);
-        float knockbackSpeed = currentKnockbackDistance / currentKnockbackDuration;
-
-        transform.position += knockbackDirection * knockbackSpeed * moveTime;
-        remainingKnockbackTime -= moveTime;
-    }
-
-    private bool IsAnimatorInHitState()
+    private bool IsAnimatorHit()
     {
         AnimatorStateInfo currentState = animator.GetCurrentAnimatorStateInfo(0);
 
@@ -196,6 +156,23 @@ public class EnemyHealth : MonoBehaviour, IDamageable
         return nextState.IsTag("Hit");
     }
 
+    private void UpdateKnockback()
+    {
+        if (!isHitReacting || !hasEnteredHitState || remainingKnockbackTime <= 0f)
+            return;
+
+        float moveTime = Mathf.Min(Time.deltaTime, remainingKnockbackTime);
+        float knockbackSpeed = currentKnockbackDistance / currentKnockbackDuration;
+        Vector3 movement = knockbackDirection * knockbackSpeed * moveTime;
+
+        if (agent != null && agent.isOnNavMesh)
+            agent.Move(movement);
+        else
+            transform.position += movement;
+
+        remainingKnockbackTime -= moveTime;
+    }
+
     private void EndHitReaction()
     {
         isHitReacting = false;
@@ -203,10 +180,20 @@ public class EnemyHealth : MonoBehaviour, IDamageable
 
         currentHitReaction = HitImpact.None;
         currentKnockbackDistance = 0f;
-        currentKnockbackDuration = 0f;
         remainingKnockbackTime = 0f;
 
         ResetHitTriggers();
+        enemyCore.ExitHit();
+    }
+
+    private float GetKnockbackMultiplier()
+    {
+        return weightClass switch
+        {
+            EnemyWeightClass.Heavy => 0.4f,
+            EnemyWeightClass.Boss => 0f,
+            _ => 1f
+        };
     }
 
     private void ResetHitTriggers()
@@ -217,18 +204,12 @@ public class EnemyHealth : MonoBehaviour, IDamageable
 
     private void Die()
     {
-        isDead = true;
-        isHitReacting = false;
-        hasEnteredHitState = false;
+        enemyCore.EnterDead();
 
-        currentHitReaction = HitImpact.None;
-        currentKnockbackDistance = 0f;
-        currentKnockbackDuration = 0f;
+        isHitReacting = false;
         remainingKnockbackTime = 0f;
 
-        if (animator != null)
-            ResetHitTriggers();
-
+        ResetHitTriggers();
         gameObject.SetActive(false);
     }
 }
