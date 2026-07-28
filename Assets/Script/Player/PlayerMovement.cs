@@ -16,7 +16,7 @@ public class PlayerMovement : MonoBehaviour
     private Animator animator;
     private Camera mainCamera;
     private float idleTimer;
-
+    
     private void Awake()
     {
         mainCamera = Camera.main;
@@ -39,7 +39,7 @@ public class PlayerMovement : MonoBehaviour
         if (!playerCore.CanMove)
             return;
 
-        Move();
+        Move();     
     }
 
     private void Move()

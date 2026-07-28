@@ -24,7 +24,7 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
 
     [Header("Heavy Attack")]
     [SerializeField] private int heavyFirstAttackDamage = 20;
-    [SerializeField] private HitImpact heavyFirstAttackImpact = HitImpact.Light;
+    [SerializeField] private HitImpact heavyFirstAttackImpact = HitImpact.Middle;
     [SerializeField] private float heavyFirstAttackKnockbackDistance = 0.2f;
 
     [SerializeField] private int heavySecondAttackDamage = 30;
@@ -410,6 +410,19 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
         ResetAttackTriggers();
 
         playerCore.ExitAttack();
+    }
+
+    public void BeginInvincibility()
+    {
+        CurrentAttackImpact = HitImpact.Invincible;
+    }
+
+    public void EndInvincibility()
+    {
+        if (CurrentAttackImpact != HitImpact.Invincible)
+            return;
+
+        CurrentAttackImpact = HitImpact.None;
     }
 
     private void UpdateAttackState()

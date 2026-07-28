@@ -8,6 +8,7 @@ public class PlayerDodge : MonoBehaviour
     [SerializeField] private float dodgeMoveDuration = 0.3f;
 
     private PlayerCore playerCore;
+    private PlayerCombat playerCombat;
     private Animator animator;
 
     private Vector3 dodgeDirection;
@@ -20,6 +21,7 @@ public class PlayerDodge : MonoBehaviour
     public void Initialize(PlayerCore core)
     {
         playerCore = core;
+        playerCombat = GetComponent<PlayerCombat>();
         animator = core.Animator;
     }
 
@@ -96,6 +98,22 @@ public class PlayerDodge : MonoBehaviour
         remainingMoveTime -= moveTime;
     }
 
+    public void BeginDodgeInvincibility()
+    {
+        if (!isDodging || playerCombat == null)
+            return;
+
+        playerCombat.BeginInvincibility();
+    }
+
+    public void EndDodgeInvincibility()
+    {
+        if (playerCombat == null)
+            return;
+
+        playerCombat.EndInvincibility();
+    }
+
     private bool IsAnimatorDodging()
     {
         AnimatorStateInfo currentState = animator.GetCurrentAnimatorStateInfo(0);
@@ -112,11 +130,18 @@ public class PlayerDodge : MonoBehaviour
 
     private void EndDodge()
     {
+        EndDodgeInvincibility();
+
         isDodging = false;
         hasEnteredDodgeState = false;
         remainingMoveTime = 0f;
 
         animator.ResetTrigger("Dodge");
         playerCore.ExitDodge();
+    }
+
+    private void OnDisable()
+    {
+        EndDodgeInvincibility();
     }
 }

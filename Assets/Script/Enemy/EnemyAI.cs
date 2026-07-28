@@ -10,10 +10,9 @@ public class EnemyAI : MonoBehaviour
 
     [Header("Range")]
     [SerializeField] private float detectionRange = 10f;
-    [SerializeField] private float attackRange = 2f;
-    [SerializeField] private float chaseResumeRange = 2.3f;
-    [SerializeField] private float tooCloseRange = 0.9f;
-    [SerializeField] private float retreatStopRange = 1.4f;
+    [SerializeField] private float attackRange = 2.1f;
+    [SerializeField] private float tooCloseRange = 1.15f;
+    [SerializeField] private float retreatStopRange = 1.8f;
 
     [Header("Attack")]
     [SerializeField] private float attackCooldown = 1.2f;
@@ -21,10 +20,13 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private float heavyAttackChance = 0.3f;
 
     [Header("Reposition")]
-    [SerializeField] private float repositionRadius = 1.7f;
-    [SerializeField] private float repositionAngle = 75f;
-    [SerializeField] private float repositionSampleDistance = 1.5f;
-    [SerializeField] private float repositionReachDistance = 0.2f;
+    [SerializeField] private float repositionMinRadius = 2.4f;
+    [SerializeField] private float repositionMaxRadius = 3.4f;
+    [SerializeField] private float repositionSampleDistance = 2.5f;
+    [SerializeField] private float repositionReachDistance = 0.25f;
+    [SerializeField] private float repositionTargetRefreshInterval = 0.8f;
+    [SerializeField] private float repositionMinimumMoveDistance = 0.9f;
+    [SerializeField] private int repositionTargetAttempts = 12;
 
     [Header("Rotation")]
     [SerializeField] private float rotationSpeed = 10f;
@@ -35,8 +37,10 @@ public class EnemyAI : MonoBehaviour
     private NavMeshAgent agent;
     private EnemyCore enemyCore;
     private EnemyCombat enemyCombat;
+    private NavMeshPath navigationPath;
 
     private float nextAttackTime;
+    private float nextRepositionTargetRefreshTime;
 
     private bool wasAttacking;
     private bool isRetreating;
@@ -44,11 +48,17 @@ public class EnemyAI : MonoBehaviour
 
     private Vector3 repositionTarget;
 
+    public void SetTarget(Transform newTarget)
+    {
+        target = newTarget;
+    }
+
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
         enemyCore = GetComponent<EnemyCore>();
         enemyCombat = GetComponent<EnemyCombat>();
+        navigationPath = new NavMeshPath();
 
         if (animator == null)
             animator = GetComponentInChildren<Animator>();
@@ -89,15 +99,15 @@ public class EnemyAI : MonoBehaviour
         {
             wasAttacking = false;
             nextAttackTime = Time.time + attackCooldown;
-            hasRepositionTarget = false;
+            ClearRepositionTarget();
         }
 
-        float distance = Vector3.Distance(transform.position, target.position);
+        float distance = GetDistanceToTarget();
 
         if (distance > detectionRange)
         {
             isRetreating = false;
-            hasRepositionTarget = false;
+            ClearRepositionTarget();
 
             enemyCore.EnterIdle();
             StopMoving();
@@ -108,22 +118,20 @@ public class EnemyAI : MonoBehaviour
 
         if (isRetreating)
         {
-            if (distance >= retreatStopRange)
-            {
-                isRetreating = false;
-                hasRepositionTarget = false;
-            }
-            else
+            if (distance < retreatStopRange)
             {
                 RetreatFromTarget();
                 return;
             }
+
+            isRetreating = false;
+            ClearRepositionTarget();
         }
 
         if (distance <= tooCloseRange)
         {
             isRetreating = true;
-            hasRepositionTarget = false;
+            ClearRepositionTarget();
 
             RetreatFromTarget();
             return;
@@ -131,47 +139,33 @@ public class EnemyAI : MonoBehaviour
 
         if (Time.time < nextAttackTime)
         {
-            HandleCooldownMovement(distance);
+            RepositionAroundTarget();
             return;
         }
 
-        hasRepositionTarget = false;
+        ClearRepositionTarget();
 
         if (distance <= attackRange)
         {
-            enemyCore.EnterIdle();
             StopMoving();
             TryAttack();
             return;
         }
 
-        if (distance >= chaseResumeRange)
-        {
-            ChaseTarget();
-            return;
-        }
-
-        enemyCore.EnterIdle();
-        StopMoving();
+        ChaseTarget();
     }
 
-    private void HandleCooldownMovement(float distance)
+    private float GetDistanceToTarget()
     {
-        if (distance >= chaseResumeRange)
-        {
-            hasRepositionTarget = false;
-            ChaseTarget();
-            return;
-        }
+        Vector3 offset = target.position - transform.position;
+        offset.y = 0f;
 
-        RepositionAroundTarget();
+        return offset.magnitude;
     }
 
     private void TryAttack()
     {
-        bool useHeavyAttack = Random.value < heavyAttackChance;
-
-        if (useHeavyAttack)
+        if (Random.value < heavyAttackChance)
             enemyCombat.TryStartHeavyAttack();
         else
             enemyCombat.TryStartLightAttack();
@@ -179,87 +173,133 @@ public class EnemyAI : MonoBehaviour
 
     private void ChaseTarget()
     {
-        if (!agent.isOnNavMesh)
-            return;
-
         enemyCore.EnterChase();
-
-        agent.isStopped = false;
-        agent.SetDestination(target.position);
-
-        UpdateLocomotionAnimation();
+        TrySetDestination(target.position, attackRange * 0.9f);
     }
 
     private void RetreatFromTarget()
     {
-        if (!agent.isOnNavMesh)
-            return;
-
         enemyCore.EnterReposition();
 
-        Vector3 awayDirection = transform.position - target.position;
-        awayDirection.y = 0f;
-
-        if (awayDirection.sqrMagnitude < 0.01f)
-            awayDirection = -transform.forward;
-
-        awayDirection.Normalize();
-
+        Vector3 awayDirection = GetDirectionAwayFromTarget();
         Vector3 desiredPosition = target.position + awayDirection * retreatStopRange;
 
-        if (NavMesh.SamplePosition(desiredPosition, out NavMeshHit hit, repositionSampleDistance, NavMesh.AllAreas))
-        {
-            agent.isStopped = false;
-            agent.SetDestination(hit.position);
-        }
+        if (TrySetDestination(desiredPosition, 0.05f))
+            return;
 
-        UpdateLocomotionAnimation();
+        MoveDirectly(awayDirection);
     }
 
     private void RepositionAroundTarget()
     {
-        if (!agent.isOnNavMesh)
-            return;
-
         enemyCore.EnterReposition();
 
-        if (!hasRepositionTarget || HasReachedRepositionTarget())
-            ChooseRepositionTarget();
+        if (ShouldChooseNewRepositionTarget())
+            TryChooseRepositionTarget();
 
-        if (!hasRepositionTarget)
+        if (hasRepositionTarget && TrySetDestination(repositionTarget, 0.05f))
+            return;
+
+        TryMoveToFallbackRepositionPosition();
+    }
+
+    private bool ShouldChooseNewRepositionTarget()
+    {
+        return !hasRepositionTarget || HasReachedRepositionTarget() || Time.time >= nextRepositionTargetRefreshTime;
+    }
+
+    private void TryChooseRepositionTarget()
+    {
+        hasRepositionTarget = false;
+
+        float minimumRadius = Mathf.Max(repositionMinRadius, retreatStopRange);
+        float maximumRadius = Mathf.Max(minimumRadius, repositionMaxRadius);
+
+        for (int attempt = 0; attempt < repositionTargetAttempts; attempt++)
         {
-            StopMoving();
+            float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+            float radius = Random.Range(minimumRadius, maximumRadius);
+            Vector3 desiredPosition = target.position + new Vector3(Mathf.Sin(angle), 0f, Mathf.Cos(angle)) * radius;
+
+            if (!NavMesh.SamplePosition(desiredPosition, out NavMeshHit hit, repositionSampleDistance, NavMesh.AllAreas))
+                continue;
+
+            Vector3 movementToCandidate = hit.position - transform.position;
+            movementToCandidate.y = 0f;
+
+            if (movementToCandidate.sqrMagnitude < repositionMinimumMoveDistance * repositionMinimumMoveDistance)
+                continue;
+
+            if (!CanReachPosition(hit.position))
+                continue;
+
+            repositionTarget = hit.position;
+            hasRepositionTarget = true;
+            nextRepositionTargetRefreshTime = Time.time + repositionTargetRefreshInterval;
             return;
         }
 
-        agent.isStopped = false;
-        agent.SetDestination(repositionTarget);
-
-        UpdateLocomotionAnimation();
+        nextRepositionTargetRefreshTime = Time.time + repositionTargetRefreshInterval;
     }
 
-    private void ChooseRepositionTarget()
+    private void TryMoveToFallbackRepositionPosition()
+    {
+        Vector3 awayDirection = GetDirectionAwayFromTarget();
+        float fallbackRadius = Mathf.Max(repositionMinRadius, retreatStopRange);
+        Vector3 desiredPosition = target.position + awayDirection * fallbackRadius;
+
+        if (TrySetDestination(desiredPosition, 0.05f))
+            return;
+
+        MoveDirectly(awayDirection);
+    }
+
+    private Vector3 GetDirectionAwayFromTarget()
     {
         Vector3 awayDirection = transform.position - target.position;
         awayDirection.y = 0f;
 
         if (awayDirection.sqrMagnitude < 0.01f)
-            awayDirection = -target.forward;
+            return -transform.forward;
 
-        awayDirection.Normalize();
+        return awayDirection.normalized;
+    }
 
-        float side = Random.value < 0.5f ? -1f : 1f;
-        Vector3 repositionDirection = Quaternion.AngleAxis(repositionAngle * side, Vector3.up) * awayDirection;
-        Vector3 desiredPosition = target.position + repositionDirection * repositionRadius;
+    private bool TrySetDestination(Vector3 destination, float stoppingDistance)
+    {
+        if (!agent.isOnNavMesh || !CanReachPosition(destination))
+            return false;
 
-        if (!NavMesh.SamplePosition(desiredPosition, out NavMeshHit hit, repositionSampleDistance, NavMesh.AllAreas))
-        {
-            hasRepositionTarget = false;
+        agent.isStopped = false;
+        agent.stoppingDistance = stoppingDistance;
+        agent.SetDestination(destination);
+
+        UpdateLocomotionAnimation();
+        return true;
+    }
+
+    private bool CanReachPosition(Vector3 destination)
+    {
+        return agent.isOnNavMesh && agent.CalculatePath(destination, navigationPath) && navigationPath.status == NavMeshPathStatus.PathComplete;
+    }
+
+    private void MoveDirectly(Vector3 direction)
+    {
+        if (!agent.isOnNavMesh)
             return;
-        }
 
-        repositionTarget = hit.position;
-        hasRepositionTarget = true;
+        agent.isStopped = false;
+        agent.ResetPath();
+        agent.Move(direction * agent.speed * Time.deltaTime);
+
+        Vector3 localDirection = transform.InverseTransformDirection(direction);
+        SetLocomotion(true, localDirection.x, localDirection.z);
+    }
+
+    private void ClearRepositionTarget()
+    {
+        hasRepositionTarget = false;
+        nextRepositionTargetRefreshTime = 0f;
     }
 
     private bool HasReachedRepositionTarget()

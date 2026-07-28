@@ -2,9 +2,11 @@ using UnityEngine;
 
 public enum HitImpact
 {
-    None,
-    Light,
-    Heavy
+    None = 0,
+    Light = 1,
+    Middle = 3,
+    Heavy = 2,
+    Invincible = 4
 }
 
 public readonly struct DamageInfo

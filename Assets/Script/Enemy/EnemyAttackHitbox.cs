@@ -30,6 +30,12 @@ public class EnemyAttackHitbox : MonoBehaviour
         if (!isHitboxOpen || hitboxCollider == null)
             return;
 
+        if (enemyCombat == null || !enemyCombat.IsAttacking)
+        {
+            CloseAttackHitbox();
+            return;
+        }
+
         CheckHitbox();
     }
 

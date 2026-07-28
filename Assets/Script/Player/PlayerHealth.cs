@@ -10,13 +10,14 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 
     [Header("Knockback")]
     [SerializeField] private float lightKnockbackDuration = 0.08f;
+    [SerializeField] private float middleKnockbackDuration = 0.2f;
     [SerializeField] private float heavyKnockbackDuration = 0.4f;
 
     private PlayerCore playerCore;
     private IAttackStateProvider attackStateProvider;
 
     [Header("CurrentHealth")]
-    [SerializeField]    private int currentHealth;
+    [SerializeField] private int currentHealth;
 
     private bool isHitReacting;
     private bool hasEnteredHitState;
@@ -46,6 +47,9 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 
     public void TakeDamage(DamageInfo damageInfo)
     {
+        if (IsInvincible())
+            return;
+
         currentHealth -= damageInfo.Damage;
 
         if (currentHealth <= 0)
@@ -64,6 +68,10 @@ public class PlayerHealth : MonoBehaviour, IDamageable
             return;
 
         HitImpact currentAttackImpact = attackStateProvider != null ? attackStateProvider.CurrentAttackImpact : HitImpact.None;
+
+        if (damageInfo.Impact == HitImpact.Light && currentAttackImpact == HitImpact.Light)
+            return;
+
         HitImpact resolvedReaction = HitReactionResolver.Resolve(damageInfo.Impact, currentAttackImpact);
 
         if (resolvedReaction == HitImpact.None)
@@ -86,7 +94,12 @@ public class PlayerHealth : MonoBehaviour, IDamageable
             knockbackDirection.Normalize();
 
         currentKnockbackDistance = Mathf.Max(knockbackDistance, 0f);
-        currentKnockbackDuration = reaction == HitImpact.Light ? lightKnockbackDuration : heavyKnockbackDuration;
+        currentKnockbackDuration = reaction switch
+        {
+            HitImpact.Light => lightKnockbackDuration,
+            HitImpact.Middle => middleKnockbackDuration,
+            _ => heavyKnockbackDuration
+        };
         currentKnockbackDuration = Mathf.Max(currentKnockbackDuration, 0.01f);
 
         remainingKnockbackTime = currentKnockbackDistance > 0f ? currentKnockbackDuration : 0f;
@@ -98,10 +111,20 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 
         ResetHitTriggers();
 
-        if (currentHitReaction == HitImpact.Light)
-            animator.SetTrigger("LightHit");
-        else
-            animator.SetTrigger("HeavyHit");
+        switch (currentHitReaction)
+        {
+            case HitImpact.Light:
+                animator.SetTrigger("LightHit");
+                break;
+
+            case HitImpact.Middle:
+                animator.SetTrigger("MiddleHit");
+                break;
+
+            default:
+                animator.SetTrigger("HeavyHit");
+                break;
+        }
     }
 
     private void UpdateHitState()
@@ -167,7 +190,13 @@ public class PlayerHealth : MonoBehaviour, IDamageable
     private void ResetHitTriggers()
     {
         animator.ResetTrigger("LightHit");
+        animator.ResetTrigger("MiddleHit");
         animator.ResetTrigger("HeavyHit");
+    }
+
+    private bool IsInvincible()
+    {
+        return attackStateProvider != null && attackStateProvider.CurrentAttackImpact == HitImpact.Invincible;
     }
 
     private void Die()

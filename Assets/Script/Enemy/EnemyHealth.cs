@@ -22,6 +22,7 @@ public class EnemyHealth : MonoBehaviour, IDamageable
 
     [Header("Knockback")]
     [SerializeField] private float lightKnockbackDuration = 0.08f;
+    [SerializeField] private float middleKnockbackDuration = 0.2f;
     [SerializeField] private float heavyKnockbackDuration = 0.4f;
 
     private EnemyCore enemyCore;
@@ -59,7 +60,7 @@ public class EnemyHealth : MonoBehaviour, IDamageable
 
     public void TakeDamage(DamageInfo damageInfo)
     {
-        if (enemyCore.IsDead)
+        if (enemyCore.IsDead || IsInvincible())
             return;
 
         currentHealth -= damageInfo.Damage;
@@ -103,7 +104,12 @@ public class EnemyHealth : MonoBehaviour, IDamageable
             knockbackDirection.Normalize();
 
         currentKnockbackDistance = Mathf.Max(knockbackDistance, 0f);
-        currentKnockbackDuration = reaction == HitImpact.Light ? lightKnockbackDuration : heavyKnockbackDuration;
+        currentKnockbackDuration = reaction switch
+        {
+            HitImpact.Light => lightKnockbackDuration,
+            HitImpact.Middle => middleKnockbackDuration,
+            _ => heavyKnockbackDuration
+        };
         currentKnockbackDuration = Mathf.Max(currentKnockbackDuration, 0.01f);
 
         remainingKnockbackTime = currentKnockbackDistance > 0f ? currentKnockbackDuration : 0f;
@@ -115,10 +121,20 @@ public class EnemyHealth : MonoBehaviour, IDamageable
 
         ResetHitTriggers();
 
-        if (currentHitReaction == HitImpact.Light)
-            animator.SetTrigger("LightHit");
-        else
-            animator.SetTrigger("HeavyHit");
+        switch (currentHitReaction)
+        {
+            case HitImpact.Light:
+                animator.SetTrigger("LightHit");
+                break;
+
+            case HitImpact.Middle:
+                animator.SetTrigger("MiddleHit");
+                break;
+
+            default:
+                animator.SetTrigger("HeavyHit");
+                break;
+        }
     }
 
     private void UpdateHitState()
@@ -199,7 +215,13 @@ public class EnemyHealth : MonoBehaviour, IDamageable
     private void ResetHitTriggers()
     {
         animator.ResetTrigger("LightHit");
+        animator.ResetTrigger("MiddleHit");
         animator.ResetTrigger("HeavyHit");
+    }
+
+    private bool IsInvincible()
+    {
+        return attackStateProvider != null && attackStateProvider.CurrentAttackImpact == HitImpact.Invincible;
     }
 
     private void Die()
