@@ -1,8 +1,7 @@
 using UnityEngine;
 using UnityEngine.AI;
 
-[RequireComponent(typeof(EnemyCore))]
-public class EnemyCombat : MonoBehaviour, IAttackStateProvider
+public class MeleeEnemyCombat : MonoBehaviour, IAttackStateProvider
 {
     [Header("Reference")]
     [SerializeField] private Animator animator;

@@ -9,7 +9,7 @@ public enum EnemyState
     Hit,
     Dead
 }
-
+[RequireComponent(typeof(EnemyHealth), typeof(EnemyTarget), typeof(EnemyMovement))]
 public class EnemyCore : MonoBehaviour
 {
     public EnemyState CurrentState { get; private set; } = EnemyState.Idle;

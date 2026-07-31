@@ -8,7 +8,6 @@ public enum EnemyWeightClass
     Boss
 }
 
-[RequireComponent(typeof(EnemyCore))]
 public class EnemyHealth : MonoBehaviour, IDamageable
 {
     [Header("Health")]

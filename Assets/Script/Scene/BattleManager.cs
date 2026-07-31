@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.AI;
 
 public class BattleManager : MonoBehaviour
 {
@@ -123,10 +122,16 @@ public class BattleManager : MonoBehaviour
             }
 
             EnemyHealth spawnedEnemy = Instantiate(spawnData.EnemyPrefab, spawnData.SpawnPoint.position, spawnData.SpawnPoint.rotation, enemyContainer);
-            EnemyAI enemyAI = spawnedEnemy.GetComponent<EnemyAI>();
+            EnemyTarget enemyTarget = spawnedEnemy.GetComponent<EnemyTarget>();
 
-            if (enemyAI != null)
-                enemyAI.SetTarget(playerHealth.transform);
+            if (enemyTarget == null)
+            {
+                Debug.LogWarning("[BattleManager] 생성된 적에 EnemyTarget이 없습니다.", spawnedEnemy);
+            }
+            else
+            {
+                enemyTarget.SetTarget(playerHealth.transform);
+            }
 
             aliveEnemies.Add(spawnedEnemy);
         }
@@ -217,21 +222,28 @@ public class BattleManager : MonoBehaviour
 
     private void StopEnemyControl()
     {
-        EnemyAI[] enemyAIs = FindObjectsByType<EnemyAI>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        EnemyMovement[] enemyMovements = FindObjectsByType<EnemyMovement>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
 
-        for (int i = 0; i < enemyAIs.Length; i++)
+        for (int i = 0; i < enemyMovements.Length; i++)
         {
-            EnemyAI enemyAI = enemyAIs[i];
-            NavMeshAgent agent = enemyAI.GetComponent<NavMeshAgent>();
-
-            if (agent != null && agent.isOnNavMesh)
-            {
-                agent.isStopped = true;
-                agent.ResetPath();
-            }
-
-            enemyAI.enabled = false;
+            EnemyMovement enemyMovement = enemyMovements[i];
+            enemyMovement.Stop();
         }
+
+        MeleeEnemyAI[] meleeAIs = FindObjectsByType<MeleeEnemyAI>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+
+        for (int i = 0; i < meleeAIs.Length; i++)
+            meleeAIs[i].enabled = false;
+
+        ArcherEnemyAI[] archerAIs = FindObjectsByType<ArcherEnemyAI>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+
+        for (int i = 0; i < archerAIs.Length; i++)
+            archerAIs[i].enabled = false;
+
+        BossEnemyAI[] bossAIs = FindObjectsByType<BossEnemyAI>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+
+        for (int i = 0; i < bossAIs.Length; i++)
+            bossAIs[i].enabled = false;
     }
 
     public void RetryBattle()

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class EnemyAttackHitbox : MonoBehaviour
+public class MeleeEnemyAttackHitbox : MonoBehaviour
 {
     [Header("Hitbox")]
     [SerializeField] private BoxCollider hitboxCollider;
@@ -10,7 +10,7 @@ public class EnemyAttackHitbox : MonoBehaviour
 
     private readonly HashSet<IDamageable> hitTargets = new HashSet<IDamageable>();
 
-    private EnemyCombat enemyCombat;
+    private MeleeEnemyCombat enemyCombat;
     private Collider[] hitResults;
 
     private int currentDamage;
@@ -21,7 +21,7 @@ public class EnemyAttackHitbox : MonoBehaviour
 
     private void Awake()
     {
-        enemyCombat = GetComponentInParent<EnemyCombat>();
+        enemyCombat = GetComponentInParent<MeleeEnemyCombat>();
         hitResults = new Collider[Mathf.Max(maxHitCount, 1)];
     }
 
