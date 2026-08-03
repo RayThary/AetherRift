@@ -10,6 +10,7 @@ public enum EnemyState
     Dead
 }
 [RequireComponent(typeof(EnemyHealth), typeof(EnemyTarget), typeof(EnemyMovement))]
+[RequireComponent(typeof(EnemyMeleeAttackHitbox))]
 public class EnemyCore : MonoBehaviour
 {
     public EnemyState CurrentState { get; private set; } = EnemyState.Idle;

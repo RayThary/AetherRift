@@ -14,7 +14,8 @@ public class PlayerHealth : MonoBehaviour, IDamageable
     [SerializeField] private float heavyKnockbackDuration = 0.4f;
 
     private PlayerCore playerCore;
-    private IAttackStateProvider attackStateProvider;
+    private PlayerCombat playerCombat;
+    private PlayerSkillController playerSkillController;
 
     [Header("CurrentHealth")]
     [SerializeField] private int currentHealth;
@@ -31,7 +32,8 @@ public class PlayerHealth : MonoBehaviour, IDamageable
     private void Awake()
     {
         playerCore = GetComponent<PlayerCore>();
-        attackStateProvider = GetComponent<IAttackStateProvider>();
+        playerCombat = GetComponent<PlayerCombat>();
+        playerSkillController = GetComponent<PlayerSkillController>();
 
         if (animator == null)
             animator = GetComponent<Animator>();
@@ -50,7 +52,10 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         if (IsInvincible())
             return;
 
-        currentHealth -= damageInfo.Damage;
+        bool isSkillProtected = playerSkillController != null && playerSkillController.IsUsingSkill;
+        int receivedDamage = isSkillProtected ? playerSkillController.CalculateReducedDamage(damageInfo.Damage) : damageInfo.Damage;
+
+        currentHealth -= receivedDamage;
 
         if (currentHealth <= 0)
         {
@@ -58,6 +63,9 @@ public class PlayerHealth : MonoBehaviour, IDamageable
             Die();
             return;
         }
+
+        if (isSkillProtected)
+            return;
 
         ApplyHitReaction(damageInfo);
     }
@@ -67,7 +75,7 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         if (isHitReacting)
             return;
 
-        HitImpact currentAttackImpact = attackStateProvider != null ? attackStateProvider.CurrentAttackImpact : HitImpact.None;
+        HitImpact currentAttackImpact = playerCombat != null ? playerCombat.CurrentAttackImpact : HitImpact.None;
 
         if (damageInfo.Impact == HitImpact.Light && currentAttackImpact == HitImpact.Light)
             return;
@@ -77,8 +85,8 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         if (resolvedReaction == HitImpact.None)
             return;
 
-        if (attackStateProvider != null)
-            attackStateProvider.CancelAttackForHit();
+        if (playerCombat != null)
+            playerCombat.CancelAttackForHit();
 
         StartHitReaction(resolvedReaction, damageInfo.HitDirection, damageInfo.KnockbackDistance);
     }
@@ -196,7 +204,7 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 
     private bool IsInvincible()
     {
-        return attackStateProvider != null && attackStateProvider.CurrentAttackImpact == HitImpact.Invincible;
+        return playerCombat != null && playerCombat.CurrentAttackImpact == HitImpact.Invincible;
     }
 
     private void Die()

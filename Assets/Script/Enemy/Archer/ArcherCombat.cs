@@ -13,6 +13,7 @@ public class ArcherCombat : MonoBehaviour, IAttackStateProvider
     [SerializeField] private Animator animator;
     [SerializeField] private Transform arrowSpawnPoint;
     [SerializeField] private ArrowProjectile arrowPrefab;
+    [SerializeField] private GameObject daggerObject;
 
     [Header("Animation")]
     [SerializeField] private string rangedAttackTrigger = "LightAttack";
@@ -24,8 +25,14 @@ public class ArcherCombat : MonoBehaviour, IAttackStateProvider
     [SerializeField] private float arrowKnockbackDistance = 0.1f;
     [SerializeField] private float targetAimHeight = 1f;
 
+    [Header("Melee Attack")]
+    [SerializeField] private int meleeDamage = 12;
+    [SerializeField] private HitImpact meleeImpact = HitImpact.Light;
+    [SerializeField] private float meleeKnockbackDistance = 0.5f;
+
     private EnemyCore enemyCore;
     private EnemyTarget enemyTarget;
+    private EnemyMeleeAttackHitbox meleeHitbox;
     private ArrowProjectile preparedArrow;
 
     private AttackType currentAttackType;
@@ -33,15 +40,21 @@ public class ArcherCombat : MonoBehaviour, IAttackStateProvider
     private bool hasEnteredAttackState;
     private bool hasReleasedArrow;
 
-    public HitImpact CurrentAttackImpact => HitImpact.None;
+    public bool IsAttacking => isAttacking;
+    public int CurrentAttackDamage { get; private set; }
+    public HitImpact CurrentAttackImpact { get; private set; } = HitImpact.None;
+    public float CurrentAttackKnockbackDistance { get; private set; }
 
     private void Awake()
     {
         enemyCore = GetComponent<EnemyCore>();
         enemyTarget = GetComponent<EnemyTarget>();
+        meleeHitbox = GetComponent<EnemyMeleeAttackHitbox>();
 
         if (animator == null)
             animator = GetComponentInChildren<Animator>();
+
+        ResetMeleeWeapon();
     }
 
     private void Update()
@@ -66,6 +79,7 @@ public class ArcherCombat : MonoBehaviour, IAttackStateProvider
             return false;
         }
 
+        SetCurrentAttack(0, HitImpact.None, 0f);
         PrepareArrow();
         StartAttack(AttackType.Ranged, rangedAttackTrigger);
 
@@ -77,6 +91,14 @@ public class ArcherCombat : MonoBehaviour, IAttackStateProvider
         if (!CanStartAttack())
             return false;
 
+        if (daggerObject == null || meleeHitbox == null)
+        {
+            enemyCore.ExitAttack();
+            Debug.LogWarning("[ArcherCombat] Dagger Object 또는 Melee Hitbox가 비어 있습니다.", this);
+            return false;
+        }
+
+        SetCurrentAttack(meleeDamage, meleeImpact, meleeKnockbackDistance);
         StartAttack(AttackType.Melee, meleeAttackTrigger);
 
         return true;
@@ -94,6 +116,23 @@ public class ArcherCombat : MonoBehaviour, IAttackStateProvider
         preparedArrow = null;
 
         arrowToRelease.Launch(direction, transform, arrowDamage, arrowImpact, arrowKnockbackDistance);
+    }
+
+    public void OpenMeleeHitbox()
+    {
+        if (!isAttacking || currentAttackType != AttackType.Melee || daggerObject == null || meleeHitbox == null)
+            return;
+
+        daggerObject.SetActive(true);
+        meleeHitbox.OpenAttackHitbox();
+    }
+
+    public void CloseMeleeHitbox()
+    {
+        meleeHitbox?.CloseAttackHitbox();
+
+        if (daggerObject != null)
+            daggerObject.SetActive(false);
     }
 
     public void CancelAttackForHit()
@@ -130,6 +169,8 @@ public class ArcherCombat : MonoBehaviour, IAttackStateProvider
 
     private void StartAttack(AttackType attackType, string triggerName)
     {
+        ResetMeleeWeapon();
+
         currentAttackType = attackType;
         isAttacking = true;
         hasEnteredAttackState = false;
@@ -137,6 +178,13 @@ public class ArcherCombat : MonoBehaviour, IAttackStateProvider
 
         ResetAttackTriggers();
         animator.SetTrigger(triggerName);
+    }
+
+    private void SetCurrentAttack(int damage, HitImpact impact, float knockbackDistance)
+    {
+        CurrentAttackDamage = Mathf.Max(damage, 0);
+        CurrentAttackImpact = impact;
+        CurrentAttackKnockbackDistance = Mathf.Max(knockbackDistance, 0f);
     }
 
     private Vector3 GetArrowDirection()
@@ -213,7 +261,14 @@ public class ArcherCombat : MonoBehaviour, IAttackStateProvider
         hasEnteredAttackState = false;
         hasReleasedArrow = false;
 
+        SetCurrentAttack(0, HitImpact.None, 0f);
+        ResetMeleeWeapon();
         DestroyPreparedArrow();
+    }
+
+    private void ResetMeleeWeapon()
+    {
+        CloseMeleeHitbox();
     }
 
     private void DestroyPreparedArrow()

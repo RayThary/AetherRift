@@ -45,6 +45,7 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
     [SerializeField] private float attackStateCheckDelay = 0.1f;
 
     private PlayerCore playerCore;
+    private PlayerAttackHitbox playerAttackHitbox;
     private Animator animator;
 
     private Vector3 attackMoveDirection;
@@ -79,6 +80,7 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
     public void Initialize(PlayerCore core)
     {
         playerCore = core;
+        playerAttackHitbox = GetComponent<PlayerAttackHitbox>();
         animator = core.Animator;
     }
 
@@ -295,6 +297,9 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
         CurrentAttackDamage = Mathf.Max(damage, 0);
         CurrentAttackImpact = impact;
         CurrentAttackKnockbackDistance = Mathf.Max(knockbackDistance, 0f);
+
+        if (playerAttackHitbox != null)
+            playerAttackHitbox.SetAttackData(CurrentAttackDamage, CurrentAttackImpact, CurrentAttackKnockbackDistance);
     }
 
     private void PrepareAttackMovement(int sourceStateHash, float startTime, float distance, float duration)
@@ -471,9 +476,7 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
 
         basicAttackStep = 0;
 
-        CurrentAttackDamage = 0;
-        CurrentAttackImpact = HitImpact.None;
-        CurrentAttackKnockbackDistance = 0f;
+        SetCurrentAttack(0, HitImpact.None, 0f);
 
         StopAttackMovement();
         CancelPendingAttackMovement();

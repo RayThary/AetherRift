@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[RequireComponent(typeof(MeleeEnemyCombat), typeof(MeleeEnemyAttackHitbox))]
+[RequireComponent(typeof(MeleeEnemyCombat))]
 public class MeleeEnemyAI : MonoBehaviour
 {
     [Header("Range")]

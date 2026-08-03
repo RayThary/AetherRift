@@ -10,10 +10,11 @@ public class PlayerAttackHitbox : MonoBehaviour
 
     private readonly HashSet<IDamageable> hitTargets = new HashSet<IDamageable>();
 
-    private PlayerCore playerCore;
-    private PlayerCombat playerCombat;
-
     private Collider[] hitResults;
+
+    private int preparedDamage;
+    private HitImpact preparedAttackImpact;
+    private float preparedKnockbackDistance;
 
     private int currentDamage;
     private HitImpact currentAttackImpact;
@@ -23,15 +24,10 @@ public class PlayerAttackHitbox : MonoBehaviour
 
     private void Awake()
     {
-        playerCore = GetComponentInParent<PlayerCore>();
-        playerCombat = GetComponentInParent<PlayerCombat>();
         hitResults = new Collider[Mathf.Max(maxHitCount, 1)];
 
         if (hitboxCollider == null)
-            Debug.LogError("[PlayerAttackHitbox] Hitbox Collider°¡ ¿¬°áµÇÁö ¾Ê¾Ò½À´Ï´Ù.");
-
-        if (playerCombat == null)
-            Debug.LogError("[PlayerAttackHitbox] PlayerCombatÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù.");
+            Debug.LogError("[PlayerAttackHitbox] Hitbox Colliderê°€ ì—°ê²°ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤.");
     }
 
     private void LateUpdate()
@@ -39,23 +35,27 @@ public class PlayerAttackHitbox : MonoBehaviour
         if (!isHitboxOpen || hitboxCollider == null)
             return;
 
-        if (playerCore != null && playerCore.CurrentState != PlayerState.Attacking)
-        {
-            CloseAttackHitbox();
-            return;
-        }
-
         CheckHitbox();
+    }
+
+    public void SetAttackData(int damage, HitImpact impact, float knockbackDistance)
+    {
+        preparedDamage = Mathf.Max(damage, 0);
+        preparedAttackImpact = impact;
+        preparedKnockbackDistance = Mathf.Max(knockbackDistance, 0f);
+
+        if (preparedDamage <= 0)
+            CloseAttackHitbox();
     }
 
     public void OpenAttackHitbox()
     {
-        if (playerCombat == null || playerCombat.CurrentAttackDamage <= 0)
+        if (preparedDamage <= 0)
             return;
 
-        currentDamage = playerCombat.CurrentAttackDamage;
-        currentAttackImpact = playerCombat.CurrentAttackImpact;
-        currentKnockbackDistance = playerCombat.CurrentAttackKnockbackDistance;
+        currentDamage = preparedDamage;
+        currentAttackImpact = preparedAttackImpact;
+        currentKnockbackDistance = preparedKnockbackDistance;
 
         hitTargets.Clear();
         isHitboxOpen = true;
@@ -92,7 +92,7 @@ public class PlayerAttackHitbox : MonoBehaviour
             if (damageable == null || hitTargets.Contains(damageable))
                 continue;
 
-            Vector3 hitDirection = hitResults[i].transform.position - playerCore.transform.position;
+            Vector3 hitDirection = hitResults[i].transform.position - transform.position;
             hitDirection.y = 0f;
 
             if (hitDirection.sqrMagnitude > 0.01f)

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class MeleeEnemyAttackHitbox : MonoBehaviour
+public class EnemyMeleeAttackHitbox : MonoBehaviour
 {
     [Header("Hitbox")]
     [SerializeField] private BoxCollider hitboxCollider;
