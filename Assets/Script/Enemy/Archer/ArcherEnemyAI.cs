@@ -33,11 +33,6 @@ public class ArcherEnemyAI : MonoBehaviour
     private bool retreatAfterMeleeAttack;
     private bool hasStrafeDestination;
 
-    public void SetTarget(Transform newTarget)
-    {
-        enemyTarget.SetTarget(newTarget);
-    }
-
     private void Awake()
     {
         enemyCore = GetComponent<EnemyCore>();

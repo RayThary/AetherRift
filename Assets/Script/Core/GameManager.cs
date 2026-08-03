@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -8,6 +9,8 @@ public class GameManager : MonoBehaviour
     private bool isInitialized;
 
     public GameObject CurrentPlayer { get; private set; }
+
+    public event Action<GameObject> CurrentPlayerChanged;
 
     private void Awake()
     {
@@ -20,7 +23,8 @@ public class GameManager : MonoBehaviour
             Destroy(gameObject);
             return;
         }
-        FindCurrentPlayer();
+
+        RefreshCurrentPlayer();
     }
 
     private void OnEnable()
@@ -33,6 +37,12 @@ public class GameManager : MonoBehaviour
         SceneManager.sceneLoaded -= HandleSceneLoaded;
     }
 
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
+
     private void Start()
     {
         InitializeGame();
@@ -40,13 +50,14 @@ public class GameManager : MonoBehaviour
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode loadSceneMode)
     {
-        FindCurrentPlayer();
+        RefreshCurrentPlayer();
     }
 
-    private void FindCurrentPlayer()
+    private void RefreshCurrentPlayer()
     {
         PlayerCore playerCore = FindFirstObjectByType<PlayerCore>();
         CurrentPlayer = playerCore != null ? playerCore.gameObject : null;
+        CurrentPlayerChanged?.Invoke(CurrentPlayer);
     }
 
     private void InitializeGame()

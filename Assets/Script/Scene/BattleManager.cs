@@ -33,7 +33,6 @@ public class BattleManager : MonoBehaviour
     }
 
     [Header("Reference")]
-    [SerializeField] private PlayerHealth playerHealth;
     [SerializeField] private Transform enemyContainer;
 
     [Header("Wave")]
@@ -47,6 +46,7 @@ public class BattleManager : MonoBehaviour
 
     private readonly List<EnemyHealth> aliveEnemies = new();
 
+    private PlayerHealth playerHealth;
     private BattleState battleState = BattleState.Waiting;
     private int currentWaveIndex;
     private bool isChangingWave;
@@ -62,12 +62,8 @@ public class BattleManager : MonoBehaviour
 
     private void Start()
     {
-        if (playerHealth == null)
-            playerHealth = FindFirstObjectByType<PlayerHealth>();
-
-        if (playerHealth == null)
+        if (!TryBindCurrentPlayer())
         {
-            Debug.LogError("[BattleManager] PlayerHealth를 찾지 못했습니다.");
             return;
         }
 
@@ -122,22 +118,36 @@ public class BattleManager : MonoBehaviour
             }
 
             EnemyHealth spawnedEnemy = Instantiate(spawnData.EnemyPrefab, spawnData.SpawnPoint.position, spawnData.SpawnPoint.rotation, enemyContainer);
-            EnemyTarget enemyTarget = spawnedEnemy.GetComponent<EnemyTarget>();
-
-            if (enemyTarget == null)
-            {
-                Debug.LogWarning("[BattleManager] 생성된 적에 EnemyTarget이 없습니다.", spawnedEnemy);
-            }
-            else
-            {
-                enemyTarget.SetTarget(playerHealth.transform);
-            }
-
             aliveEnemies.Add(spawnedEnemy);
         }
 
         if (aliveEnemies.Count == 0)
             Debug.LogError($"[BattleManager] {currentWave.WaveName}에 생성된 적이 없습니다.");
+    }
+
+    private bool TryBindCurrentPlayer()
+    {
+        if (GameManager.Instance == null)
+        {
+            Debug.LogError("[BattleManager] GameManager를 찾지 못했습니다.", this);
+            return false;
+        }
+
+        GameObject currentPlayer = GameManager.Instance.CurrentPlayer;
+
+        if (currentPlayer == null)
+        {
+            Debug.LogError("[BattleManager] 현재 씬에 플레이어가 없습니다.", this);
+            return false;
+        }
+
+        playerHealth = currentPlayer.GetComponent<PlayerHealth>();
+
+        if (playerHealth != null)
+            return true;
+
+        Debug.LogError("[BattleManager] 현재 플레이어에 PlayerHealth가 없습니다.", currentPlayer);
+        return false;
     }
 
     private void RemoveDefeatedEnemies()

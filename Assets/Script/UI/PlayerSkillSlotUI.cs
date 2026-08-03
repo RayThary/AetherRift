@@ -13,12 +13,15 @@ public class PlayerSkillSlotUI : MonoBehaviour
     [SerializeField] private TMP_Text skillKeyText;
     [SerializeField] private string skillKeyLabel = "Q";
 
+    private GameManager gameManager;
     private PlayerSkillController playerSkillController;
+    private bool isSubscribed;
 
-    private void Start()
+    private void Awake()
     {
-        if (!TryBindPlayerSkillController())
+        if (cooldownFill == null)
         {
+            Debug.LogError("[PlayerSkillSlotUI] Cooldown Fill이 연결되지 않았습니다.", this);
             enabled = false;
             return;
         }
@@ -26,45 +29,71 @@ public class PlayerSkillSlotUI : MonoBehaviour
         if (skillKeyText != null)
             skillKeyText.text = skillKeyLabel;
 
-        UpdateCooldownUI();
+        ClearCooldownUI();
+    }
+
+    private void OnEnable()
+    {
+        TrySubscribeToGameManager();
+    }
+
+    private void Start()
+    {
+        TrySubscribeToGameManager();
+    }
+
+    private void OnDisable()
+    {
+        UnsubscribeFromGameManager();
+        playerSkillController = null;
     }
 
     private void Update()
     {
+        if (playerSkillController == null)
+            return;
+
         UpdateCooldownUI();
     }
 
-    private bool TryBindPlayerSkillController()
+    private void TrySubscribeToGameManager()
     {
-        if (GameManager.Instance == null)
-        {
-            Debug.LogError("[PlayerSkillSlotUI] GameManager를 찾을 수 없습니다.", this);
-            return false;
-        }
+        if (isSubscribed || GameManager.Instance == null)
+            return;
 
-        GameObject currentPlayer = GameManager.Instance.CurrentPlayer;
+        gameManager = GameManager.Instance;
+        gameManager.CurrentPlayerChanged += HandleCurrentPlayerChanged;
+        isSubscribed = true;
 
-        if (currentPlayer == null)
-        {
-            Debug.LogError("[PlayerSkillSlotUI] 현재 플레이어를 찾을 수 없습니다.", this);
-            return false;
-        }
+        HandleCurrentPlayerChanged(gameManager.CurrentPlayer);
+    }
 
-        playerSkillController = currentPlayer.GetComponent<PlayerSkillController>();
+    private void UnsubscribeFromGameManager()
+    {
+        if (!isSubscribed)
+            return;
+
+        if (gameManager != null)
+            gameManager.CurrentPlayerChanged -= HandleCurrentPlayerChanged;
+
+        gameManager = null;
+        isSubscribed = false;
+    }
+
+    private void HandleCurrentPlayerChanged(GameObject currentPlayer)
+    {
+        playerSkillController = currentPlayer != null ? currentPlayer.GetComponent<PlayerSkillController>() : null;
+
+        if (currentPlayer != null && playerSkillController == null)
+            Debug.LogError("[PlayerSkillSlotUI] 현재 플레이어에 PlayerSkillController가 없습니다.", currentPlayer);
 
         if (playerSkillController == null)
         {
-            Debug.LogError("[PlayerSkillSlotUI] 플레이어에 PlayerSkillController가 없습니다.", currentPlayer);
-            return false;
+            ClearCooldownUI();
+            return;
         }
 
-        if (cooldownFill == null)
-        {
-            Debug.LogError("[PlayerSkillSlotUI] Cooldown Fill이 연결되지 않았습니다.", this);
-            return false;
-        }
-
-        return true;
+        UpdateCooldownUI();
     }
 
     private void UpdateCooldownUI()
@@ -79,5 +108,14 @@ public class PlayerSkillSlotUI : MonoBehaviour
             return;
 
         cooldownText.text = isOnCooldown ? Mathf.CeilToInt(cooldownRemaining).ToString() : string.Empty;
+    }
+
+    private void ClearCooldownUI()
+    {
+        cooldownFill.fillAmount = 0f;
+        cooldownFill.enabled = false;
+
+        if (cooldownText != null)
+            cooldownText.text = string.Empty;
     }
 }

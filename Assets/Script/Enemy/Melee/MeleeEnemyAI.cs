@@ -35,11 +35,6 @@ public class MeleeEnemyAI : MonoBehaviour
     private bool wasAttacking;
     private bool hasRepositionTarget;
 
-    public void SetTarget(Transform newTarget)
-    {
-        enemyTarget.SetTarget(newTarget);
-    }
-
     private void Awake()
     {
         enemyCore = GetComponent<EnemyCore>();
