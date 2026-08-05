@@ -13,9 +13,8 @@ public class PlayerSkillSlotUI : MonoBehaviour
     [SerializeField] private TMP_Text skillKeyText;
     [SerializeField] private string skillKeyLabel = "Q";
 
-    private GameManager gameManager;
+    private GameObject currentPlayer;
     private PlayerSkillController playerSkillController;
-    private bool isSubscribed;
 
     private void Awake()
     {
@@ -32,56 +31,22 @@ public class PlayerSkillSlotUI : MonoBehaviour
         ClearCooldownUI();
     }
 
-    private void OnEnable()
-    {
-        TrySubscribeToGameManager();
-    }
-
-    private void Start()
-    {
-        TrySubscribeToGameManager();
-    }
-
-    private void OnDisable()
-    {
-        UnsubscribeFromGameManager();
-        playerSkillController = null;
-    }
-
     private void Update()
     {
+        GameObject newPlayer = GameManager.Instance != null ? GameManager.Instance.CurrentPlayer : null;
+
+        if (!object.ReferenceEquals(currentPlayer, newPlayer))
+            BindCurrentPlayer(newPlayer);
+
         if (playerSkillController == null)
             return;
 
         UpdateCooldownUI();
     }
 
-    private void TrySubscribeToGameManager()
+    private void BindCurrentPlayer(GameObject newPlayer)
     {
-        if (isSubscribed || GameManager.Instance == null)
-            return;
-
-        gameManager = GameManager.Instance;
-        gameManager.CurrentPlayerChanged += HandleCurrentPlayerChanged;
-        isSubscribed = true;
-
-        HandleCurrentPlayerChanged(gameManager.CurrentPlayer);
-    }
-
-    private void UnsubscribeFromGameManager()
-    {
-        if (!isSubscribed)
-            return;
-
-        if (gameManager != null)
-            gameManager.CurrentPlayerChanged -= HandleCurrentPlayerChanged;
-
-        gameManager = null;
-        isSubscribed = false;
-    }
-
-    private void HandleCurrentPlayerChanged(GameObject currentPlayer)
-    {
+        currentPlayer = newPlayer;
         playerSkillController = currentPlayer != null ? currentPlayer.GetComponent<PlayerSkillController>() : null;
 
         if (currentPlayer != null && playerSkillController == null)

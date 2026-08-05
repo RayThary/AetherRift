@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -39,6 +40,10 @@ public class EnemyHealth : MonoBehaviour, IDamageable
     private float currentKnockbackDuration;
     private float remainingKnockbackTime;
 
+    public event Action<EnemyHealth> Died;
+
+    public bool IsDead => enemyCore != null && enemyCore.IsDead;
+
     private void Awake()
     {
         enemyCore = GetComponent<EnemyCore>();
@@ -59,7 +64,7 @@ public class EnemyHealth : MonoBehaviour, IDamageable
 
     public void TakeDamage(DamageInfo damageInfo)
     {
-        if (enemyCore.IsDead || IsInvincible())
+        if (IsDead || IsInvincible())
             return;
 
         currentHealth -= damageInfo.Damage;
@@ -225,12 +230,16 @@ public class EnemyHealth : MonoBehaviour, IDamageable
 
     private void Die()
     {
+        if (IsDead)
+            return;
+
         enemyCore.EnterDead();
 
         isHitReacting = false;
         remainingKnockbackTime = 0f;
 
         ResetHitTriggers();
+        Died?.Invoke(this);
         gameObject.SetActive(false);
     }
 }

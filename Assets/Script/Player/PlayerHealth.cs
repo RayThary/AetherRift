@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public class PlayerHealth : MonoBehaviour, IDamageable
@@ -28,6 +29,12 @@ public class PlayerHealth : MonoBehaviour, IDamageable
     private float currentKnockbackDistance;
     private float currentKnockbackDuration;
     private float remainingKnockbackTime;
+    public float HealthNormalized => maxHealth > 0 ? (float)currentHealth / maxHealth : 0f;
+
+
+    public event Action Died;
+
+    public bool IsDead { get; private set; }
 
     private void Awake()
     {
@@ -49,7 +56,7 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 
     public void TakeDamage(DamageInfo damageInfo)
     {
-        if (IsInvincible())
+        if (IsDead || IsInvincible())
             return;
 
         bool isSkillProtected = playerSkillController != null && playerSkillController.IsUsingSkill;
@@ -209,6 +216,11 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 
     private void Die()
     {
+        if (IsDead)
+            return;
+
+        IsDead = true;
+        Died?.Invoke();
         gameObject.SetActive(false);
     }
 }
