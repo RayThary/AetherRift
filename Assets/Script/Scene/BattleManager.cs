@@ -23,7 +23,7 @@ public class BattleManager : MonoBehaviour
     [Min(0f)]
     [SerializeField] private float clearPanelDuration = 2f;
     [SerializeField] private GameObject failPanel;
-    [SerializeField] private DungeonExitPortal exitPortal;
+    [SerializeField] private ScenePortal exitPortal;
     [SerializeField] private int lobbySceneIndex = 2;
 
     private readonly List<EnemyHealth> aliveEnemies = new();

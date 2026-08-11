@@ -43,19 +43,18 @@ public class SaveManager : MonoBehaviour
 
     private void OnApplicationPause(bool isPaused)
     {
-        if (isPaused && isAutoSaveEnabled)
+        if (isPaused)
             SaveGame();
     }
 
     private void OnApplicationQuit()
     {
-        if (isAutoSaveEnabled)
-            SaveGame();
+        SaveGame();
     }
 
     public bool SaveGame()
     {
-        if (isLoading || !TryGetProgressManager())
+        if (!isAutoSaveEnabled || isLoading || !TryGetProgressManager())
             return false;
 
         return WriteSaveData();
@@ -68,6 +67,8 @@ public class SaveManager : MonoBehaviour
 
         DisableAutoSave();
         isLoading = true;
+        bool relicDataMigrated = false;
+        bool loadSucceeded = false;
 
         try
         {
@@ -81,12 +82,12 @@ public class SaveManager : MonoBehaviour
             if (loadedData == null)
                 throw new InvalidDataException("저장 데이터를 변환할 수 없습니다.");
 
-            progressManager.ApplyLoadedProgress(loadedData);
+            relicDataMigrated = progressManager.ApplyLoadedProgress(loadedData);
+            loadSucceeded = true;
         }
         catch (Exception exception)
         {
             Debug.LogWarning($"[SaveManager] 불러오기에 실패했습니다.\n{exception.Message}", this);
-            return false;
         }
         finally
         {
@@ -94,6 +95,13 @@ public class SaveManager : MonoBehaviour
         }
 
         EnableAutoSave();
+
+        if (!loadSucceeded)
+            return false;
+
+        if (relicDataMigrated)
+            WriteSaveData();
+
         return true;
     }
 

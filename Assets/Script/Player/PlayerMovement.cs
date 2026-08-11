@@ -16,6 +16,10 @@ public class PlayerMovement : MonoBehaviour
     private Animator animator;
     private Camera mainCamera;
     private float idleTimer;
+    private float moveSpeedBonus;
+
+    public float WalkSpeed => Mathf.Max(walkSpeed + moveSpeedBonus, 0f);
+    public float RunSpeed => Mathf.Max(runSpeed + moveSpeedBonus, 0f);
     
     private void Awake()
     {
@@ -32,9 +36,6 @@ public class PlayerMovement : MonoBehaviour
     {
         if (playerCore == null)
             return;
-
-        if (playerCore.CanRotate)
-            RotateToMouse();
 
         if (!playerCore.CanMove)
             return;
@@ -78,7 +79,11 @@ public class PlayerMovement : MonoBehaviour
         cameraRight.Normalize();
 
         Vector3 moveDirection = cameraForward * input.y + cameraRight * input.x;
-        float currentSpeed = isRunning ? runSpeed : walkSpeed;
+
+        if (isMoving && playerCore.CanRotate)
+            RotateToDirection(moveDirection);
+
+        float currentSpeed = isRunning ? RunSpeed : WalkSpeed;
 
         transform.position += moveDirection * currentSpeed * Time.deltaTime;
         UpdateMovementAnimation(moveDirection, isMoving, isRunning);
@@ -116,26 +121,65 @@ public class PlayerMovement : MonoBehaviour
         animator.SetFloat("LocomotionBlend", 0f);
     }
 
-    private void RotateToMouse()
+    public void SetMoveSpeedBonus(float value)
     {
-        if (Mouse.current == null || mainCamera == null)
+        moveSpeedBonus = value;
+    }
+
+    public Vector3 GetCameraRelativeInputDirection()
+    {
+        if (Keyboard.current == null || mainCamera == null)
+            return Vector3.zero;
+
+        Vector2 input = Vector2.zero;
+
+        if (Keyboard.current.wKey.isPressed)
+            input.y += 1f;
+
+        if (Keyboard.current.sKey.isPressed)
+            input.y -= 1f;
+
+        if (Keyboard.current.aKey.isPressed)
+            input.x -= 1f;
+
+        if (Keyboard.current.dKey.isPressed)
+            input.x += 1f;
+
+        Vector3 cameraForward = mainCamera.transform.forward;
+        Vector3 cameraRight = mainCamera.transform.right;
+
+        cameraForward.y = 0f;
+        cameraRight.y = 0f;
+
+        cameraForward.Normalize();
+        cameraRight.Normalize();
+
+        Vector3 inputDirection = cameraForward * input.y + cameraRight * input.x;
+        return inputDirection.sqrMagnitude > 0.01f ? inputDirection.normalized : Vector3.zero;
+    }
+
+    public void RotateToCameraForward()
+    {
+        if (mainCamera == null)
             return;
 
-        Vector2 mousePosition = Mouse.current.position.ReadValue();
-        Ray ray = mainCamera.ScreenPointToRay(mousePosition);
-        Plane groundPlane = new Plane(Vector3.up, transform.position);
+        Vector3 cameraForward = mainCamera.transform.forward;
+        cameraForward.y = 0f;
 
-        if (!groundPlane.Raycast(ray, out float distance))
+        if (cameraForward.sqrMagnitude < 0.01f)
             return;
 
-        Vector3 targetPoint = ray.GetPoint(distance);
-        Vector3 lookDirection = targetPoint - transform.position;
-        lookDirection.y = 0f;
+        transform.rotation = Quaternion.LookRotation(cameraForward);
+    }
 
-        if (lookDirection.sqrMagnitude < 0.01f)
+    private void RotateToDirection(Vector3 direction)
+    {
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < 0.01f)
             return;
 
-        Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
+        Quaternion targetRotation = Quaternion.LookRotation(direction);
         transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
     }
 }

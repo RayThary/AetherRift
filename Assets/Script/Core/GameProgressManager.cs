@@ -7,6 +7,8 @@ public class GameProgressManager : MonoBehaviour
 {
     public static GameProgressManager Instance { get; private set; }
 
+    private const int CurrentSaveVersion = 4;
+
     private List<RelicData> relicDatabase = new List<RelicData>();
     private List<QuestData> questDatabase = new List<QuestData>();
     private List<DungeonData> dungeonDatabase = new List<DungeonData>();
@@ -17,6 +19,7 @@ public class GameProgressManager : MonoBehaviour
 
     public GameProgressData CurrentData => currentData;
     public int Currency => currentData?.currency ?? 0;
+    public int CurrentHealth => currentData?.currentHealth ?? -1;
     public bool FinalBossCleared => currentData != null && currentData.finalBossCleared;
 
     private void Awake()
@@ -49,13 +52,17 @@ public class GameProgressManager : MonoBehaviour
         NotifyProgressChanged();
     }
 
-    public void ApplyLoadedProgress(GameProgressData loadedData)
+    public bool ApplyLoadedProgress(GameProgressData loadedData)
     {
         currentData = loadedData ?? new GameProgressData();
         currentData.EnsureValid();
+
+        bool relicDataMigrated = MigrateRelicData();
+
         currentData.currency = Mathf.Max(0, currentData.currency);
         UnlockAvailableDungeons();
         NotifyProgressChanged();
+        return relicDataMigrated;
     }
 
     public void AddCurrency(int amount)
@@ -86,6 +93,54 @@ public class GameProgressManager : MonoBehaviour
         return true;
     }
 
+    public void AddMaxHealthBonus(int amount)
+    {
+        if (amount <= 0)
+            return;
+
+        EnsureCurrentData();
+        currentData.maxHealthBonus += amount;
+        NotifyProgressChanged();
+    }
+
+    public void AddAttackPowerBonus(int amount)
+    {
+        if (amount <= 0)
+            return;
+
+        EnsureCurrentData();
+        currentData.attackPowerBonus += amount;
+        NotifyProgressChanged();
+    }
+
+    public void AddMoveSpeedBonus(float amount)
+    {
+        if (amount <= 0f)
+            return;
+
+        EnsureCurrentData();
+        currentData.moveSpeedBonus += amount;
+        NotifyProgressChanged();
+    }
+
+    public void SetCurrentHealth(int health)
+    {
+        EnsureCurrentData();
+        currentData.currentHealth = Mathf.Max(health, 0);
+    }
+
+    public IReadOnlyList<RelicInventoryData> GetOwnedRelicGroups()
+    {
+        EnsureCurrentData();
+        return currentData.ownedRelicGroups;
+    }
+
+    public IReadOnlyList<RelicInstanceData> GetOwnedRelics(string relicId)
+    {
+        RelicInventoryData relicGroup = FindOwnedRelicGroup(relicId);
+        return relicGroup != null ? relicGroup.Instances : Array.Empty<RelicInstanceData>();
+    }
+
     public bool HasRelic(RelicData relicData)
     {
         return relicData != null && HasRelic(relicData.RelicId);
@@ -93,74 +148,135 @@ public class GameProgressManager : MonoBehaviour
 
     public bool HasRelic(string relicId)
     {
-        EnsureCurrentData();
-        return ContainsId(currentData.ownedRelicIds, relicId);
+        return FindOwnedRelicInstanceByRelicId(relicId) != null;
+    }
+
+    public bool HasRelicInstance(string relicInstanceId)
+    {
+        return FindRelicInstance(relicInstanceId) != null;
+    }
+
+    public RelicInstanceData CreateRelicInstance(RelicData relicData)
+    {
+        if (!TryGetValidId(relicData, out _))
+            return null;
+
+        return relicData.CreateInstance();
     }
 
     public bool AddRelic(RelicData relicData)
     {
-        if (!TryGetValidId(relicData, out string relicId) || HasRelic(relicId))
+        RelicInstanceData relicInstance = CreateRelicInstance(relicData);
+        return AddRelicInstance(relicInstance);
+    }
+
+    public bool AddRelicInstance(RelicInstanceData relicInstance)
+    {
+        if (!TryAddRelicInstance(relicInstance))
             return false;
 
-        currentData.ownedRelicIds.Add(relicId);
         NotifyProgressChanged();
         return true;
     }
 
-    public bool TryPurchaseRelic(RelicData relicData)
+    public bool TryPurchaseRelic(RelicInstanceData relicInstance)
     {
-        if (!TryGetValidId(relicData, out string relicId) || HasRelic(relicId))
+        if (!IsRelicInstanceValid(relicInstance))
             return false;
 
-        if (currentData.currency < relicData.Price)
+        EnsureCurrentData();
+
+        if (currentData.currency < relicInstance.Price || HasRelicInstance(relicInstance.InstanceId))
             return false;
 
-        currentData.currency -= relicData.Price;
-        currentData.ownedRelicIds.Add(relicId);
+        currentData.currency -= relicInstance.Price;
+        TryAddRelicInstance(relicInstance);
         NotifyProgressChanged();
         return true;
     }
 
-    public bool TryEquipRelic(RelicData relicData, int slotIndex)
+    public bool TryEquipRelic(RelicInstanceData relicInstance, int slotIndex)
     {
-        if (!IsValidRelicSlot(slotIndex) || !TryGetValidId(relicData, out string relicId) || !HasRelic(relicId))
+        return relicInstance != null && TryEquipRelic(relicInstance.InstanceId, slotIndex);
+    }
+
+    public bool TryEquipRelic(string relicInstanceId, int slotIndex)
+    {
+        if (!IsValidRelicSlot(slotIndex))
             return false;
 
-        if (IdsMatch(currentData.equippedRelicIds[slotIndex], relicId))
+        RelicInstanceData relicInstance = FindRelicInstance(relicInstanceId);
+
+        if (relicInstance == null)
+            return false;
+
+        if (IdsMatch(currentData.equippedRelicInstanceIds[slotIndex], relicInstance.InstanceId))
             return true;
 
-        for (int i = 0; i < currentData.equippedRelicIds.Count; i++)
-        {
-            if (IdsMatch(currentData.equippedRelicIds[i], relicId))
-                currentData.equippedRelicIds[i] = string.Empty;
-        }
+        if (IsRelicTypeEquipped(relicInstance.RelicId, slotIndex))
+            return false;
 
-        currentData.equippedRelicIds[slotIndex] = relicId;
+        currentData.equippedRelicInstanceIds[slotIndex] = relicInstance.InstanceId;
         NotifyProgressChanged();
         return true;
     }
 
     public bool UnequipRelic(int slotIndex)
     {
-        if (!IsValidRelicSlot(slotIndex) || string.IsNullOrEmpty(currentData.equippedRelicIds[slotIndex]))
+        if (!IsValidRelicSlot(slotIndex) || string.IsNullOrEmpty(currentData.equippedRelicInstanceIds[slotIndex]))
             return false;
 
-        currentData.equippedRelicIds[slotIndex] = string.Empty;
+        currentData.equippedRelicInstanceIds[slotIndex] = string.Empty;
         NotifyProgressChanged();
         return true;
     }
 
-    public string GetEquippedRelicId(int slotIndex)
+    public string GetEquippedRelicInstanceId(int slotIndex)
     {
         if (!IsValidRelicSlot(slotIndex))
             return string.Empty;
 
-        return currentData.equippedRelicIds[slotIndex];
+        return currentData.equippedRelicInstanceIds[slotIndex];
     }
 
-    public RelicData GetEquippedRelic(int slotIndex)
+    public RelicInstanceData GetEquippedRelic(int slotIndex)
     {
-        return FindRelic(GetEquippedRelicId(slotIndex));
+        return FindRelicInstance(GetEquippedRelicInstanceId(slotIndex));
+    }
+
+    public bool TryRemoveRelic(string relicInstanceId)
+    {
+        if (string.IsNullOrWhiteSpace(relicInstanceId))
+            return false;
+
+        EnsureCurrentData();
+
+        for (int groupIndex = 0; groupIndex < currentData.ownedRelicGroups.Count; groupIndex++)
+        {
+            RelicInventoryData relicGroup = currentData.ownedRelicGroups[groupIndex];
+
+            if (relicGroup == null || relicGroup.instances == null)
+                continue;
+
+            for (int instanceIndex = 0; instanceIndex < relicGroup.instances.Count; instanceIndex++)
+            {
+                RelicInstanceData relicInstance = relicGroup.instances[instanceIndex];
+
+                if (relicInstance == null || !IdsMatch(relicInstance.InstanceId, relicInstanceId))
+                    continue;
+
+                UnequipRelicInstance(relicInstance.InstanceId);
+                relicGroup.instances.RemoveAt(instanceIndex);
+
+                if (relicGroup.instances.Count == 0)
+                    currentData.ownedRelicGroups.RemoveAt(groupIndex);
+
+                NotifyProgressChanged();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public QuestProgressState GetQuestState(QuestData questData)
@@ -224,8 +340,10 @@ public class GameProgressManager : MonoBehaviour
         questProgress.state = QuestProgressState.Completed;
         currentData.currency += questData.CurrencyReward;
 
-        if (TryGetValidId(questData.RelicReward, out string relicRewardId) && !HasRelic(relicRewardId))
-            currentData.ownedRelicIds.Add(relicRewardId);
+        RelicInstanceData relicReward = CreateRelicInstance(questData.RelicReward);
+
+        if (relicReward != null)
+            TryAddRelicInstance(relicReward);
 
         AddNextQuestProgress(questData.NextQuest);
         NotifyProgressChanged();
@@ -297,6 +415,32 @@ public class GameProgressManager : MonoBehaviour
 
             if (relicData != null && IdsMatch(relicData.RelicId, relicId))
                 return relicData;
+        }
+
+        return null;
+    }
+
+    public RelicInstanceData FindRelicInstance(string relicInstanceId)
+    {
+        if (string.IsNullOrWhiteSpace(relicInstanceId))
+            return null;
+
+        EnsureCurrentData();
+
+        for (int groupIndex = 0; groupIndex < currentData.ownedRelicGroups.Count; groupIndex++)
+        {
+            RelicInventoryData relicGroup = currentData.ownedRelicGroups[groupIndex];
+
+            if (relicGroup == null || relicGroup.instances == null)
+                continue;
+
+            for (int instanceIndex = 0; instanceIndex < relicGroup.instances.Count; instanceIndex++)
+            {
+                RelicInstanceData relicInstance = relicGroup.instances[instanceIndex];
+
+                if (relicInstance != null && IdsMatch(relicInstance.InstanceId, relicInstanceId))
+                    return relicInstance;
+            }
         }
 
         return null;
@@ -411,6 +555,161 @@ public class GameProgressManager : MonoBehaviour
             if (canUnlock)
                 currentData.unlockedDungeonIds.Add(dungeonData.DungeonId);
         }
+    }
+
+    private bool MigrateRelicData()
+    {
+        bool relicDataMigrated = false;
+
+        if (currentData.saveVersion < 3)
+        {
+            for (int i = 0; i < currentData.ownedRelicIds.Count; i++)
+            {
+                RelicData relicData = FindRelic(currentData.ownedRelicIds[i]);
+                RelicInstanceData relicInstance = CreateRelicInstance(relicData);
+
+                if (relicInstance != null)
+                    TryAddRelicInstance(relicInstance);
+            }
+
+            HashSet<string> equippedInstanceIds = new HashSet<string>();
+
+            for (int i = 0; i < GameProgressData.RelicSlotCount; i++)
+            {
+                string legacyRelicId = currentData.equippedRelicIds[i];
+                RelicInstanceData relicInstance = FindOwnedRelicInstanceByRelicId(legacyRelicId, equippedInstanceIds);
+
+                if (relicInstance == null)
+                {
+                    RelicData relicData = FindRelic(legacyRelicId);
+                    relicInstance = CreateRelicInstance(relicData);
+
+                    if (relicInstance != null)
+                        TryAddRelicInstance(relicInstance);
+                }
+
+                currentData.equippedRelicInstanceIds[i] = relicInstance != null ? relicInstance.InstanceId : string.Empty;
+
+                if (relicInstance != null)
+                    equippedInstanceIds.Add(relicInstance.InstanceId);
+            }
+
+            currentData.ownedRelicIds.Clear();
+            currentData.equippedRelicIds.Clear();
+            currentData.saveVersion = 3;
+            relicDataMigrated = true;
+        }
+
+        if (currentData.saveVersion < CurrentSaveVersion)
+        {
+            for (int i = 0; i < currentData.ownedRelics.Count; i++)
+                TryAddRelicInstance(currentData.ownedRelics[i]);
+
+            currentData.ownedRelics.Clear();
+            currentData.saveVersion = CurrentSaveVersion;
+            relicDataMigrated = true;
+        }
+
+        currentData.EnsureValid();
+        return relicDataMigrated;
+    }
+
+    private bool TryAddRelicInstance(RelicInstanceData relicInstance)
+    {
+        if (!IsRelicInstanceValid(relicInstance) || HasRelicInstance(relicInstance.InstanceId))
+            return false;
+
+        RelicInventoryData relicGroup = FindOwnedRelicGroup(relicInstance.RelicId);
+
+        if (relicGroup == null)
+        {
+            relicGroup = new RelicInventoryData(relicInstance.RelicId);
+            currentData.ownedRelicGroups.Add(relicGroup);
+        }
+
+        relicGroup.instances.Add(relicInstance);
+        return true;
+    }
+
+    private bool IsRelicInstanceValid(RelicInstanceData relicInstance)
+    {
+        if (relicInstance == null)
+            return false;
+
+        relicInstance.EnsureValid();
+
+        return !string.IsNullOrWhiteSpace(relicInstance.InstanceId)
+            && FindRelic(relicInstance.RelicId) != null
+            && relicInstance.Effects.Count > 0;
+    }
+
+    private RelicInstanceData FindOwnedRelicInstanceByRelicId(string relicId, HashSet<string> excludedInstanceIds = null)
+    {
+        if (string.IsNullOrWhiteSpace(relicId))
+            return null;
+
+        EnsureCurrentData();
+
+        RelicInventoryData relicGroup = FindOwnedRelicGroup(relicId);
+
+        if (relicGroup == null || relicGroup.instances == null)
+            return null;
+
+        for (int i = 0; i < relicGroup.instances.Count; i++)
+        {
+            RelicInstanceData relicInstance = relicGroup.instances[i];
+
+            if (relicInstance == null || !IdsMatch(relicInstance.RelicId, relicId))
+                continue;
+
+            if (excludedInstanceIds == null || !excludedInstanceIds.Contains(relicInstance.InstanceId))
+                return relicInstance;
+        }
+
+        return null;
+    }
+
+    private RelicInventoryData FindOwnedRelicGroup(string relicId)
+    {
+        if (string.IsNullOrWhiteSpace(relicId))
+            return null;
+
+        EnsureCurrentData();
+
+        for (int i = 0; i < currentData.ownedRelicGroups.Count; i++)
+        {
+            RelicInventoryData relicGroup = currentData.ownedRelicGroups[i];
+
+            if (relicGroup != null && IdsMatch(relicGroup.RelicId, relicId))
+                return relicGroup;
+        }
+
+        return null;
+    }
+
+    private void UnequipRelicInstance(string relicInstanceId)
+    {
+        for (int i = 0; i < currentData.equippedRelicInstanceIds.Count; i++)
+        {
+            if (IdsMatch(currentData.equippedRelicInstanceIds[i], relicInstanceId))
+                currentData.equippedRelicInstanceIds[i] = string.Empty;
+        }
+    }
+
+    private bool IsRelicTypeEquipped(string relicId, int ignoredSlotIndex)
+    {
+        for (int i = 0; i < currentData.equippedRelicInstanceIds.Count; i++)
+        {
+            if (i == ignoredSlotIndex)
+                continue;
+
+            RelicInstanceData equippedRelic = FindRelicInstance(currentData.equippedRelicInstanceIds[i]);
+
+            if (equippedRelic != null && IdsMatch(equippedRelic.RelicId, relicId))
+                return true;
+        }
+
+        return false;
     }
 
     private bool IsValidRelicSlot(int slotIndex)

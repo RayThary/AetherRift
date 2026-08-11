@@ -3,6 +3,8 @@ using UnityEngine;
 
 public class PlayerHealth : MonoBehaviour, IDamageable
 {
+    private const int MaxDamageReductionPercent = 50;
+
     [Header("Health")]
     [SerializeField] private int maxHealth = 100;
 
@@ -29,8 +31,12 @@ public class PlayerHealth : MonoBehaviour, IDamageable
     private float currentKnockbackDistance;
     private float currentKnockbackDuration;
     private float remainingKnockbackTime;
-    public float HealthNormalized => maxHealth > 0 ? (float)currentHealth / maxHealth : 0f;
+    private int damageReductionPercent;
 
+    public float HealthNormalized => maxHealth > 0 ? (float)currentHealth / maxHealth : 0f;
+    public int MaxHealth => maxHealth;
+    public int CurrentHealth => currentHealth;
+    public int DamageReductionPercent => damageReductionPercent;
 
     public event Action Died;
 
@@ -54,15 +60,37 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         UpdateKnockback();
     }
 
+    public void SetMaxHealth(int value, bool restoreHealth)
+    {
+        maxHealth = Mathf.Max(value, 1);
+        currentHealth = restoreHealth ? maxHealth : Mathf.Min(currentHealth, maxHealth);
+        StoreCurrentHealth();
+    }
+
+    public void SetCurrentHealth(int value)
+    {
+        currentHealth = Mathf.Clamp(value, 0, maxHealth);
+        StoreCurrentHealth();
+    }
+
+    public void SetDamageReductionPercent(int value)
+    {
+        damageReductionPercent = Mathf.Clamp(value, 0, MaxDamageReductionPercent);
+    }
+
     public void TakeDamage(DamageInfo damageInfo)
     {
         if (IsDead || IsInvincible())
             return;
 
+        int receivedDamage = CalculateRelicReducedDamage(damageInfo.Damage);
         bool isSkillProtected = playerSkillController != null && playerSkillController.IsUsingSkill;
-        int receivedDamage = isSkillProtected ? playerSkillController.CalculateReducedDamage(damageInfo.Damage) : damageInfo.Damage;
+
+        if (isSkillProtected)
+            receivedDamage = playerSkillController.CalculateReducedDamage(receivedDamage);
 
         currentHealth -= receivedDamage;
+        StoreCurrentHealth();
 
         if (currentHealth <= 0)
         {
@@ -75,6 +103,13 @@ public class PlayerHealth : MonoBehaviour, IDamageable
             return;
 
         ApplyHitReaction(damageInfo);
+    }
+
+    private int CalculateRelicReducedDamage(int damage)
+    {
+        int safeDamage = Mathf.Max(damage, 0);
+        float damageMultiplier = 1f - damageReductionPercent / 100f;
+        return Mathf.CeilToInt(safeDamage * damageMultiplier);
     }
 
     private void ApplyHitReaction(DamageInfo damageInfo)
@@ -222,5 +257,11 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         IsDead = true;
         Died?.Invoke();
         gameObject.SetActive(false);
+    }
+
+    private void StoreCurrentHealth()
+    {
+        if (GameProgressManager.Instance != null)
+            GameProgressManager.Instance.SetCurrentHealth(currentHealth);
     }
 }

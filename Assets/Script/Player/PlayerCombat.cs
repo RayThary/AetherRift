@@ -44,16 +44,24 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
     [Header("Attack State")]
     [SerializeField] private float attackStateCheckDelay = 0.1f;
 
+    [Header("Attack Rotation")]
+    [SerializeField] private float attackRotationDuration = 0.12f;
+
     private PlayerCore playerCore;
+    private PlayerMovement playerMovement;
     private PlayerAttackHitbox playerAttackHitbox;
     private Animator animator;
 
     private Vector3 attackMoveDirection;
 
+    private Quaternion attackStartRotation;
+    private Quaternion attackTargetRotation;
+
     private float remainingAttackMoveTime;
     private float currentAttackMoveDuration;
     private float currentAttackMoveDistance;
     private float currentAttackStateCheckDelay;
+    private float attackRotationElapsedTime;
 
     private float pendingAttackMoveStartTime;
     private float pendingAttackMoveDistance;
@@ -72,6 +80,7 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
     private bool isNextBasicAttackBuffered;
     private bool isNextHeavyAttackBuffered;
     private bool hasUsedHeavySecondAttack;
+    private int attackPowerBonus;
 
     public int CurrentAttackDamage { get; private set; }
     public HitImpact CurrentAttackImpact { get; private set; } = HitImpact.None;
@@ -80,8 +89,14 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
     public void Initialize(PlayerCore core)
     {
         playerCore = core;
+        playerMovement = GetComponent<PlayerMovement>();
         playerAttackHitbox = GetComponent<PlayerAttackHitbox>();
         animator = core.Animator;
+    }
+
+    public void SetAttackPowerBonus(int value)
+    {
+        attackPowerBonus = value;
     }
 
     private void Update()
@@ -93,6 +108,7 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
         HandleAttackInput();
         UpdateBufferedBasicCombo();
         UpdateBufferedHeavyCombo();
+        UpdateAttackRotation();
         UpdatePendingAttackMovement();
         UpdateAttackMovement();
     }
@@ -134,6 +150,8 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
         if (!playerCore.TryEnterAttack())
             return;
 
+        StartAttackRotation();
+
         isAttacking = true;
         isBasicAttacking = true;
         isHeavyAttacking = false;
@@ -158,6 +176,8 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
     {
         if (!playerCore.TryEnterAttack())
             return;
+
+        StartAttackRotation();
 
         isAttacking = true;
         isBasicAttacking = false;
@@ -241,6 +261,8 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
 
         isNextBasicAttackBuffered = false;
 
+        StartAttackRotation();
+
         if (basicAttackStep == 1)
         {
             basicAttackStep = 2;
@@ -286,15 +308,60 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
         isNextHeavyAttackBuffered = false;
         hasUsedHeavySecondAttack = true;
 
+        StartAttackRotation();
+
         SetCurrentAttack(heavySecondAttackDamage, heavySecondAttackImpact, heavySecondAttackKnockbackDistance);
         PrepareAttackMovement(stateInfo.fullPathHash, heavySecondAttackMoveStartTime, heavySecondAttackMoveDistance, heavySecondAttackMoveDuration);
 
         animator.SetTrigger("NextHeavyAttack");
     }
 
+    private void StartAttackRotation()
+    {
+        if (playerMovement == null)
+            return;
+
+        Vector3 inputDirection = playerMovement.GetCameraRelativeInputDirection();
+
+        if (inputDirection.sqrMagnitude < 0.01f)
+        {
+            StopAttackRotation();
+            return;
+        }
+
+        inputDirection.y = 0f;
+        inputDirection.Normalize();
+
+        attackStartRotation = transform.rotation;
+        attackTargetRotation = Quaternion.LookRotation(inputDirection);
+        attackRotationElapsedTime = 0f;
+    }
+
+    private void UpdateAttackRotation()
+    {
+        if (!isAttacking || attackRotationElapsedTime >= attackRotationDuration)
+            return;
+
+        if (attackRotationDuration <= 0f)
+        {
+            transform.rotation = attackTargetRotation;
+            attackRotationElapsedTime = attackRotationDuration;
+            return;
+        }
+
+        attackRotationElapsedTime += Time.deltaTime;
+        float rotationProgress = Mathf.Clamp01(attackRotationElapsedTime / attackRotationDuration);
+        transform.rotation = Quaternion.Slerp(attackStartRotation, attackTargetRotation, rotationProgress);
+    }
+
+    private void StopAttackRotation()
+    {
+        attackRotationElapsedTime = attackRotationDuration;
+    }
+
     private void SetCurrentAttack(int damage, HitImpact impact, float knockbackDistance)
     {
-        CurrentAttackDamage = Mathf.Max(damage, 0);
+        CurrentAttackDamage = Mathf.Max(damage + attackPowerBonus, 0);
         CurrentAttackImpact = impact;
         CurrentAttackKnockbackDistance = Mathf.Max(knockbackDistance, 0f);
 
@@ -479,6 +546,7 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
         SetCurrentAttack(0, HitImpact.None, 0f);
 
         StopAttackMovement();
+        StopAttackRotation();
         CancelPendingAttackMovement();
     }
 

@@ -62,11 +62,13 @@ public class PlayerSkillController : MonoBehaviour
     [SerializeField] private float skillStateCheckDelay = 0.1f;
 
     private PlayerCore playerCore;
+    private PlayerMovement playerMovement;
     private PlayerAttackHitbox playerAttackHitbox;
     private Animator animator;
 
     private float[] cooldownRemainingBySkill;
     private int currentSkillIndex = -1;
+    private int attackPowerBonus;
 
     private Vector3 skillMoveDirection;
     private float remainingSkillMoveTime;
@@ -94,10 +96,16 @@ public class PlayerSkillController : MonoBehaviour
     public void Initialize(PlayerCore core)
     {
         playerCore = core;
+        playerMovement = GetComponent<PlayerMovement>();
         playerAttackHitbox = GetComponent<PlayerAttackHitbox>();
         animator = core.Animator;
 
         InitializeCooldowns();
+    }
+
+    public void SetAttackPowerBonus(int value)
+    {
+        attackPowerBonus = Mathf.Max(value, 0);
     }
 
     private void Update()
@@ -114,6 +122,9 @@ public class PlayerSkillController : MonoBehaviour
     private void HandleSkillInput()
     {
         if (Keyboard.current == null || isUsingSkill || skills == null)
+            return;
+
+        if (Keyboard.current.fKey.wasPressedThisFrame && InteractionPromptUI.Instance != null)
             return;
 
         for (int i = 0; i < skills.Count; i++)
@@ -151,6 +162,8 @@ public class PlayerSkillController : MonoBehaviour
 
         if (string.IsNullOrWhiteSpace(skill.AnimatorTrigger) || !playerCore.TryEnterSkill())
             return;
+
+        playerMovement.RotateToCameraForward();
 
         currentSkillIndex = skillIndex;
         isUsingSkill = true;
@@ -346,7 +359,7 @@ public class PlayerSkillController : MonoBehaviour
 
     private void SetCurrentAttack(int damage, HitImpact impact, float knockbackDistance)
     {
-        CurrentAttackDamage = Mathf.Max(damage, 0);
+        CurrentAttackDamage = Mathf.Max(damage + attackPowerBonus, 0);
         CurrentAttackImpact = impact;
         CurrentAttackKnockbackDistance = Mathf.Max(knockbackDistance, 0f);
 
