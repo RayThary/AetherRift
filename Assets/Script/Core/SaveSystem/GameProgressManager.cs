@@ -9,7 +9,6 @@ public class GameProgressManager : MonoBehaviour
 
     private const int CurrentSaveVersion = 4;
 
-    private List<RelicData> relicDatabase = new List<RelicData>();
     private List<QuestData> questDatabase = new List<QuestData>();
     private List<DungeonData> dungeonDatabase = new List<DungeonData>();
 
@@ -32,7 +31,6 @@ public class GameProgressManager : MonoBehaviour
 
         Instance = this;
 
-        relicDatabase = new List<RelicData>(Resources.LoadAll<RelicData>("Data/Relics"));
         questDatabase = new List<QuestData>(Resources.LoadAll<QuestData>("Data/Quests"));
         dungeonDatabase = new List<DungeonData>(Resources.LoadAll<DungeonData>("Data/Dungeons"));
 
@@ -158,10 +156,13 @@ public class GameProgressManager : MonoBehaviour
 
     public RelicInstanceData CreateRelicInstance(RelicData relicData)
     {
-        if (!TryGetValidId(relicData, out _))
+        if (RelicManager.Instance == null)
+        {
+            Debug.LogError("[GameProgressManager] RelicManager를 찾지 못했습니다.", this);
             return null;
+        }
 
-        return relicData.CreateInstance();
+        return RelicManager.Instance.CreateRelicInstance(relicData);
     }
 
     public bool AddRelic(RelicData relicData)
@@ -406,18 +407,7 @@ public class GameProgressManager : MonoBehaviour
 
     public RelicData FindRelic(string relicId)
     {
-        if (string.IsNullOrWhiteSpace(relicId))
-            return null;
-
-        for (int i = 0; i < relicDatabase.Count; i++)
-        {
-            RelicData relicData = relicDatabase[i];
-
-            if (relicData != null && IdsMatch(relicData.RelicId, relicId))
-                return relicData;
-        }
-
-        return null;
+        return RelicManager.Instance != null ? RelicManager.Instance.FindRelic(relicId) : null;
     }
 
     public RelicInstanceData FindRelicInstance(string relicInstanceId)
