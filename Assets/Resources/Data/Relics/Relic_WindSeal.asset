@@ -10,13 +10,17 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 219c1c84f0ace23498c070598cbf73e3, type: 3}
-  m_Name: RelicData 3
+  m_Name: Relic_WindSeal
   m_EditorClassIdentifier: Assembly-CSharp::RelicData
-  relicId: 
+  relicId: wind_seal
   displayName: 
   description: 
   icon: {fileID: 0}
-  price: 0
+  minPrice: 70
+  maxPrice: 200
+  hasPriceRange: 1
   effects:
   - effectType: 0
-    value: 0
+    minValue: 0.2
+    maxValue: 0.6
+    hasValueRange: 1

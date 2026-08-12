@@ -10,13 +10,17 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 219c1c84f0ace23498c070598cbf73e3, type: 3}
-  m_Name: RelicData 1
+  m_Name: Relic_GuardianPiece
   m_EditorClassIdentifier: Assembly-CSharp::RelicData
-  relicId: 
+  relicId: guardian_piece
   displayName: 
   description: 
   icon: {fileID: 0}
-  price: 0
+  minPrice: 80
+  maxPrice: 220
+  hasPriceRange: 1
   effects:
-  - effectType: 0
-    value: 0
+  - effectType: 3
+    minValue: 3
+    maxValue: 8
+    hasValueRange: 1
