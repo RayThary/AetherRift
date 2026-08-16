@@ -23,11 +23,13 @@ public class RelicInstanceData
 {
     public string instanceId;
     public string relicId;
+    public int inventorySlotIndex = -1;
     public int price;
     public List<RelicEffectValue> effects = new List<RelicEffectValue>();
 
     public string InstanceId => instanceId;
     public string RelicId => relicId;
+    public int InventorySlotIndex => inventorySlotIndex;
     public int Price => price;
     public IReadOnlyList<RelicEffectValue> Effects => effects;
 
@@ -47,6 +49,7 @@ public class RelicInstanceData
     {
         instanceId = (instanceId ?? string.Empty).Trim();
         relicId = (relicId ?? string.Empty).Trim();
+        inventorySlotIndex = inventorySlotIndex >= 0 && inventorySlotIndex < GameProgressData.MaxOwnedRelicCount ? inventorySlotIndex : -1;
         price = Mathf.Max(price, 0);
         effects ??= new List<RelicEffectValue>();
     }

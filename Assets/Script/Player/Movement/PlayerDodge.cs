@@ -30,6 +30,9 @@ public class PlayerDodge : MonoBehaviour
         if (playerCore == null)
             return;
 
+        if (playerCore.IsPlayerPaused)
+            return;
+
         HandleDodgeInput();
         UpdateDodgeState();
         UpdateDodgeMovement();

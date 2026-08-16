@@ -133,6 +133,28 @@ public class GameProgressManager : MonoBehaviour
         return currentData.ownedRelicGroups;
     }
 
+    public int GetOwnedRelicCount()
+    {
+        EnsureCurrentData();
+        int count = 0;
+
+        for (int i = 0; i < currentData.ownedRelicGroups.Count; i++)
+        {
+            RelicInventoryData relicGroup = currentData.ownedRelicGroups[i];
+
+            if (relicGroup != null)
+                count += relicGroup.Count;
+        }
+
+        return count;
+    }
+
+    public bool IsRelicInventoryFull()
+    {
+        EnsureCurrentData();
+        return FindFirstEmptyInventorySlotIndex() < 0;
+    }
+
     public IReadOnlyList<RelicInstanceData> GetOwnedRelics(string relicId)
     {
         RelicInventoryData relicGroup = FindOwnedRelicGroup(relicId);
@@ -190,8 +212,10 @@ public class GameProgressManager : MonoBehaviour
         if (currentData.currency < relicInstance.Price || HasRelicInstance(relicInstance.InstanceId))
             return false;
 
+        if (!TryAddRelicInstance(relicInstance))
+            return false;
+
         currentData.currency -= relicInstance.Price;
-        TryAddRelicInstance(relicInstance);
         NotifyProgressChanged();
         return true;
     }
@@ -217,6 +241,24 @@ public class GameProgressManager : MonoBehaviour
         if (IsRelicTypeEquipped(relicInstance.RelicId, slotIndex))
             return false;
 
+        RelicInstanceData replacedRelic = FindRelicInstance(currentData.equippedRelicInstanceIds[slotIndex]);
+        int returnSlotIndex = -1;
+
+        if (replacedRelic != null && !IdsMatch(replacedRelic.InstanceId, relicInstance.InstanceId))
+        {
+            returnSlotIndex = IsInventorySlotAvailable(relicInstance.InventorySlotIndex, relicInstance.InstanceId)
+                ? relicInstance.InventorySlotIndex
+                : FindFirstEmptyInventorySlotIndex(relicInstance.InstanceId);
+
+            if (returnSlotIndex < 0)
+                return false;
+        }
+
+        relicInstance.inventorySlotIndex = -1;
+
+        if (replacedRelic != null && !IdsMatch(replacedRelic.InstanceId, relicInstance.InstanceId))
+            replacedRelic.inventorySlotIndex = returnSlotIndex;
+
         currentData.equippedRelicInstanceIds[slotIndex] = relicInstance.InstanceId;
         NotifyProgressChanged();
         return true;
@@ -226,6 +268,17 @@ public class GameProgressManager : MonoBehaviour
     {
         if (!IsValidRelicSlot(slotIndex) || string.IsNullOrEmpty(currentData.equippedRelicInstanceIds[slotIndex]))
             return false;
+
+        RelicInstanceData equippedRelic = FindRelicInstance(currentData.equippedRelicInstanceIds[slotIndex]);
+        int inventorySlotIndex = FindFirstEmptyInventorySlotIndex();
+
+        if (equippedRelic != null)
+        {
+            if (inventorySlotIndex < 0)
+                return false;
+
+            equippedRelic.inventorySlotIndex = inventorySlotIndex;
+        }
 
         currentData.equippedRelicInstanceIds[slotIndex] = string.Empty;
         NotifyProgressChanged();
@@ -609,6 +662,11 @@ public class GameProgressManager : MonoBehaviour
         if (!IsRelicInstanceValid(relicInstance) || HasRelicInstance(relicInstance.InstanceId))
             return false;
 
+        int inventorySlotIndex = FindFirstEmptyInventorySlotIndex();
+
+        if (inventorySlotIndex < 0)
+            return false;
+
         RelicInventoryData relicGroup = FindOwnedRelicGroup(relicInstance.RelicId);
 
         if (relicGroup == null)
@@ -617,6 +675,7 @@ public class GameProgressManager : MonoBehaviour
             currentData.ownedRelicGroups.Add(relicGroup);
         }
 
+        relicInstance.inventorySlotIndex = inventorySlotIndex;
         relicGroup.instances.Add(relicInstance);
         return true;
     }
@@ -686,6 +745,134 @@ public class GameProgressManager : MonoBehaviour
         }
     }
 
+    private int FindFirstEmptyInventorySlotIndex(string ignoredInstanceId = null)
+    {
+        bool[] usedSlots = new bool[GameProgressData.MaxOwnedRelicCount];
+
+        for (int groupIndex = 0; groupIndex < currentData.ownedRelicGroups.Count; groupIndex++)
+        {
+            RelicInventoryData relicGroup = currentData.ownedRelicGroups[groupIndex];
+
+            if (relicGroup == null || relicGroup.instances == null)
+                continue;
+
+            for (int instanceIndex = 0; instanceIndex < relicGroup.instances.Count; instanceIndex++)
+            {
+                RelicInstanceData relicInstance = relicGroup.instances[instanceIndex];
+
+                if (relicInstance == null || IdsMatch(relicInstance.InstanceId, ignoredInstanceId) || IsRelicEquipped(relicInstance.InstanceId))
+                    continue;
+
+                if (relicInstance.InventorySlotIndex >= 0 && relicInstance.InventorySlotIndex < usedSlots.Length)
+                    usedSlots[relicInstance.InventorySlotIndex] = true;
+            }
+        }
+
+        for (int i = 0; i < usedSlots.Length; i++)
+        {
+            if (!usedSlots[i])
+                return i;
+        }
+
+        return -1;
+    }
+
+    private bool IsInventorySlotAvailable(int slotIndex, string ignoredInstanceId = null)
+    {
+        if (slotIndex < 0 || slotIndex >= GameProgressData.MaxOwnedRelicCount)
+            return false;
+
+        for (int groupIndex = 0; groupIndex < currentData.ownedRelicGroups.Count; groupIndex++)
+        {
+            RelicInventoryData relicGroup = currentData.ownedRelicGroups[groupIndex];
+
+            if (relicGroup == null || relicGroup.instances == null)
+                continue;
+
+            for (int instanceIndex = 0; instanceIndex < relicGroup.instances.Count; instanceIndex++)
+            {
+                RelicInstanceData relicInstance = relicGroup.instances[instanceIndex];
+
+                if (relicInstance == null || IdsMatch(relicInstance.InstanceId, ignoredInstanceId) || IsRelicEquipped(relicInstance.InstanceId))
+                    continue;
+
+                if (relicInstance.InventorySlotIndex == slotIndex)
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void NormalizeInventorySlotIndexes()
+    {
+        bool[] usedSlots = new bool[GameProgressData.MaxOwnedRelicCount];
+
+        for (int groupIndex = 0; groupIndex < currentData.ownedRelicGroups.Count; groupIndex++)
+        {
+            RelicInventoryData relicGroup = currentData.ownedRelicGroups[groupIndex];
+
+            if (relicGroup == null || relicGroup.instances == null)
+                continue;
+
+            for (int instanceIndex = 0; instanceIndex < relicGroup.instances.Count; instanceIndex++)
+            {
+                RelicInstanceData relicInstance = relicGroup.instances[instanceIndex];
+
+                if (relicInstance == null)
+                    continue;
+
+                if (IsRelicEquipped(relicInstance.InstanceId))
+                {
+                    relicInstance.inventorySlotIndex = -1;
+                    continue;
+                }
+
+                if (relicInstance.InventorySlotIndex >= 0
+                    && relicInstance.InventorySlotIndex < usedSlots.Length
+                    && !usedSlots[relicInstance.InventorySlotIndex])
+                {
+                    usedSlots[relicInstance.InventorySlotIndex] = true;
+                    continue;
+                }
+
+                int emptySlotIndex = FindFirstUnusedSlotIndex(usedSlots);
+                relicInstance.inventorySlotIndex = emptySlotIndex;
+
+                if (emptySlotIndex >= 0)
+                    usedSlots[emptySlotIndex] = true;
+            }
+        }
+    }
+
+    private int FindFirstUnusedSlotIndex(bool[] usedSlots)
+    {
+        if (usedSlots == null)
+            return -1;
+
+        for (int i = 0; i < usedSlots.Length; i++)
+        {
+            if (!usedSlots[i])
+                return i;
+        }
+
+        return -1;
+    }
+
+    private bool IsRelicEquipped(string relicInstanceId)
+    {
+        if (string.IsNullOrEmpty(relicInstanceId))
+            return false;
+
+        for (int i = 0; i < currentData.equippedRelicInstanceIds.Count; i++)
+        {
+            if (IdsMatch(currentData.equippedRelicInstanceIds[i], relicInstanceId))
+                return true;
+        }
+
+        return false;
+    }
+
     private bool IsRelicTypeEquipped(string relicId, int ignoredSlotIndex)
     {
         for (int i = 0; i < currentData.equippedRelicInstanceIds.Count; i++)
@@ -714,6 +901,7 @@ public class GameProgressManager : MonoBehaviour
             currentData = new GameProgressData();
 
         currentData.EnsureValid();
+        NormalizeInventorySlotIndexes();
     }
 
     private void NotifyProgressChanged()

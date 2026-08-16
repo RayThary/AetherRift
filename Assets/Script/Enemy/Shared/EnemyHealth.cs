@@ -28,7 +28,7 @@ public class EnemyHealth : MonoBehaviour, IDamageable
     private EnemyCore enemyCore;
     private IAttackStateProvider attackStateProvider;
     private NavMeshAgent agent;
-
+    [SerializeField]
     private int currentHealth;
 
     private bool isHitReacting;

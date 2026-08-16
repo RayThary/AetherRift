@@ -18,6 +18,10 @@ public class BattleManager : MonoBehaviour
     [SerializeField] private Transform enemyContainer;
     [SerializeField] private Transform[] spawnPoints;
 
+    [Header("Spawn")]
+    [Min(0f)]
+    [SerializeField] private float battleStartDelay = 1f;
+
     [Header("Result")]
     [SerializeField] private GameObject clearPanel;
     [Min(0f)]
@@ -34,6 +38,7 @@ public class BattleManager : MonoBehaviour
     private int nextSpawnPointIndex;
     private bool isSpawningWave;
     private bool isChangingWave;
+    private bool rewardGranted;
 
     private void Awake()
     {
@@ -49,6 +54,7 @@ public class BattleManager : MonoBehaviour
 
     private void Start()
     {
+        ResolveSelectedDungeonData();
         playerHealth = FindFirstObjectByType<PlayerHealth>();
 
         if (playerHealth == null)
@@ -78,7 +84,15 @@ public class BattleManager : MonoBehaviour
         playerHealth.Died += HandlePlayerDied;
 
         battleState = BattleState.Playing;
-        StartCoroutine(SpawnCurrentWave());
+        StartCoroutine(StartBattleAfterDelay());
+    }
+
+    private void ResolveSelectedDungeonData()
+    {
+        if (GameManager.Instance == null || GameManager.Instance.SelectedDungeonData == null)
+            return;
+
+        dungeonData = GameManager.Instance.SelectedDungeonData;
     }
 
     private void OnDestroy()
@@ -92,7 +106,18 @@ public class BattleManager : MonoBehaviour
 
             if (enemy != null)
                 enemy.Died -= HandleEnemyDied;
-        }
+            }
+    }
+
+    private IEnumerator StartBattleAfterDelay()
+    {
+        if (battleStartDelay > 0f)
+            yield return new WaitForSeconds(battleStartDelay);
+
+        if (battleState != BattleState.Playing)
+            yield break;
+
+        yield return SpawnCurrentWave();
     }
 
     private IEnumerator SpawnCurrentWave()
@@ -245,6 +270,7 @@ public class BattleManager : MonoBehaviour
     {
         battleState = BattleState.Result;
         StopEnemyControl();
+        GrantClearReward();
 
         if (clearPanel != null)
         {
@@ -256,6 +282,20 @@ public class BattleManager : MonoBehaviour
             exitPortal.gameObject.SetActive(true);
         else
             Debug.LogWarning("[BattleManager] Exit Portal이 설정되지 않았습니다.", this);
+    }
+
+    private void GrantClearReward()
+    {
+        if (rewardGranted || dungeonData == null || GameProgressManager.Instance == null)
+            return;
+
+        if (!GameProgressManager.Instance.CompleteDungeon(dungeonData))
+            return;
+
+        rewardGranted = true;
+
+        if (SaveManager.Instance != null)
+            SaveManager.Instance.SaveGame();
     }
 
     private IEnumerator HideClearPanelAfterDelay()

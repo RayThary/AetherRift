@@ -26,6 +26,9 @@ public class PlayerInteraction : MonoBehaviour
     {
         RefreshSelectedInteractable();
 
+        if (playerCore != null && playerCore.IsPlayerPaused)
+            return;
+
         if (!HasSelectedTarget || Keyboard.current == null || !Keyboard.current.fKey.wasPressedThisFrame)
             return;
 
@@ -55,7 +58,7 @@ public class PlayerInteraction : MonoBehaviour
     {
         RemoveInvalidInteractables();
 
-        if (playerCore == null || playerCore.CurrentState != PlayerState.Locomotion)
+        if (playerCore == null || playerCore.IsPlayerPaused || playerCore.CurrentState != PlayerState.Locomotion)
         {
             selectedInteractable = null;
             InteractionPromptUI.Instance?.HidePrompt();

@@ -113,6 +113,9 @@ public class PlayerSkillController : MonoBehaviour
         if (playerCore == null)
             return;
 
+        if (playerCore.IsPlayerPaused)
+            return;
+
         UpdateCooldowns();
         HandleSkillInput();
         UpdateSkillState();

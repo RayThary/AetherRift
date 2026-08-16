@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Relic_GuardianPiece
   m_EditorClassIdentifier: Assembly-CSharp::RelicData
   relicId: guardian_piece
-  displayName: 
+  displayName: testG
   description: 
-  icon: {fileID: 0}
+  icon: {fileID: 7348062147863417607, guid: a90be1f63489a614ebddd20c85481360, type: 3}
   minPrice: 80
   maxPrice: 220
   hasPriceRange: 1

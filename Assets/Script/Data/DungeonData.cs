@@ -35,6 +35,7 @@ public class DungeonData : ScriptableObject
     [Header("Identity")]
     [SerializeField] private string dungeonId;
     [SerializeField] private string displayName;
+    [SerializeField] private string difficultyText = "보통";
     [TextArea(2, 4)]
     [SerializeField] private string description;
     [SerializeField] private Sprite previewImage;
@@ -53,6 +54,7 @@ public class DungeonData : ScriptableObject
 
     public string DungeonId => dungeonId;
     public string DisplayName => displayName;
+    public string DifficultyText => difficultyText;
     public string Description => description;
     public Sprite PreviewImage => previewImage;
     public bool UnlockedByDefault => unlockedByDefault;
@@ -64,6 +66,7 @@ public class DungeonData : ScriptableObject
     private void OnValidate()
     {
         dungeonId = (dungeonId ?? string.Empty).Trim();
+        difficultyText = string.IsNullOrWhiteSpace(difficultyText) ? "보통" : difficultyText.Trim();
         requiredCompletedDungeonId = (requiredCompletedDungeonId ?? string.Empty).Trim();
         currencyReward = Mathf.Max(0, currencyReward);
     }

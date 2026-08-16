@@ -23,12 +23,13 @@ public class PlayerCore : MonoBehaviour
 
     public Animator Animator => animator;
     public PlayerState CurrentState { get; private set; } = PlayerState.Locomotion;
+    public bool IsPlayerPaused { get; private set; }
 
-    public bool CanMove => CurrentState == PlayerState.Locomotion;
-    public bool CanAttack => CurrentState == PlayerState.Locomotion;
-    public bool CanUseSkill => CurrentState == PlayerState.Locomotion;
-    public bool CanDodge => CurrentState == PlayerState.Locomotion || CurrentState == PlayerState.Attacking || CurrentState == PlayerState.UsingSkill;
-    public bool CanRotate => CurrentState != PlayerState.UsingSkill && CurrentState != PlayerState.Dodging && CurrentState != PlayerState.Hit && CurrentState != PlayerState.Dead;
+    public bool CanMove => !IsPlayerPaused && CurrentState == PlayerState.Locomotion;
+    public bool CanAttack => !IsPlayerPaused && CurrentState == PlayerState.Locomotion;
+    public bool CanUseSkill => !IsPlayerPaused && CurrentState == PlayerState.Locomotion;
+    public bool CanDodge => !IsPlayerPaused && (CurrentState == PlayerState.Locomotion || CurrentState == PlayerState.Attacking || CurrentState == PlayerState.UsingSkill);
+    public bool CanRotate => !IsPlayerPaused && CurrentState != PlayerState.UsingSkill && CurrentState != PlayerState.Dodging && CurrentState != PlayerState.Hit && CurrentState != PlayerState.Dead;
 
     private void Awake()
     {
@@ -131,5 +132,16 @@ public class PlayerCore : MonoBehaviour
             return;
 
         ChangeState(PlayerState.Locomotion);
+    }
+
+    public void SetPlayerPaused(bool isPaused)
+    {
+        if (IsPlayerPaused == isPaused)
+            return;
+
+        IsPlayerPaused = isPaused;
+
+        if (IsPlayerPaused)
+            playerMovement.StopMovementAnimation();
     }
 }

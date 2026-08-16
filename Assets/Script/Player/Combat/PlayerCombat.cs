@@ -104,6 +104,9 @@ public class PlayerCombat : MonoBehaviour, IAttackStateProvider
         if (playerCore == null)
             return;
 
+        if (playerCore.IsPlayerPaused)
+            return;
+
         UpdateAttackState();
         HandleAttackInput();
         UpdateBufferedBasicCombo();

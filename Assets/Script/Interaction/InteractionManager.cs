@@ -153,7 +153,7 @@ public class InteractionManager : MonoBehaviour
 
     private static bool IsTargetAvailable(IInteractionTarget target)
     {
-        return IsTargetValid(target) && target.CanInteract;
+        return IsTargetValid(target) && !target.PlayerInRange.IsPlayerPaused && target.CanInteract;
     }
 
     private static bool IsTargetValid(IInteractionTarget target)

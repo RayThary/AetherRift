@@ -28,6 +28,7 @@ public class QuestProgressData
 public class GameProgressData
 {
     public const int RelicSlotCount = 2;
+    public const int MaxOwnedRelicCount = 30;
 
     public int saveVersion = 4;
     public int currency;
