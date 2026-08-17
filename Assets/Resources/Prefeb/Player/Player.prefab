@@ -3951,6 +3951,7 @@ GameObject:
   - component: {fileID: 3143383065111607894}
   - component: {fileID: 7613466703337565508}
   - component: {fileID: 3326618842459127727}
+  - component: {fileID: 379024255708137754}
   - component: {fileID: 7915874058194062454}
   - component: {fileID: 8611481560810578242}
   - component: {fileID: 2755483398283250048}
@@ -4133,6 +4134,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerDodge
   dodgeDistance: 3
   dodgeMoveDuration: 0.3
+--- !u!114 &379024255708137754
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8960665168009215100}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 79c0dd8767a0aa94fbb5f4311706e4a7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHealingPotionController
+  maxPotionCount: 3
+  healRatio: 0.3
+  minimumHealAmount: 1
+  useCooldown: 5
+  useKey: 41
+  battleOnly: 1
+  battleSceneIndex: 3
 --- !u!114 &7915874058194062454
 MonoBehaviour:
   m_ObjectHideFlags: 0

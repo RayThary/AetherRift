@@ -9,7 +9,7 @@ public class PlayerHealingPotionSlotUI : MonoBehaviour
     [SerializeField] private TMP_Text countText;
     [SerializeField] private TMP_Text keyText;
     [SerializeField] private string keyLabel = "1";
-    [SerializeField] private string countFormat = "x{0}";
+    [SerializeField] private string countFormat = "{0}";
 
     private GameObject currentPlayer;
     private PlayerHealingPotionController potionController;

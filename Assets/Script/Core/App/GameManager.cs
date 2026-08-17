@@ -19,6 +19,10 @@ public class GameManager : MonoBehaviour
     [Header("Pause")]
     [SerializeField] private bool lockCursorWhenUnpaused = true;
 
+    [Header("Scene")]
+    [SerializeField] private int lobbySceneIndex = 2;
+    [SerializeField] private bool restorePlayerHealthOnLobbyStart = true;
+
     private readonly HashSet<GamePauseReason> pauseReasons = new HashSet<GamePauseReason>();
     private bool isInitialized;
 
@@ -72,6 +76,9 @@ public class GameManager : MonoBehaviour
     private void HandleSceneLoaded(Scene scene, LoadSceneMode loadSceneMode)
     {
         RefreshCurrentPlayer();
+
+        if (restorePlayerHealthOnLobbyStart && scene.buildIndex == lobbySceneIndex)
+            RestoreCurrentPlayerHealth();
     }
 
     private void RefreshCurrentPlayer()
@@ -157,6 +164,20 @@ public class GameManager : MonoBehaviour
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+    }
+
+    private void RestoreCurrentPlayerHealth()
+    {
+        PlayerHealth playerHealth = null;
+
+        if (CurrentPlayer != null)
+            playerHealth = CurrentPlayer.GetComponent<PlayerHealth>();
+
+        if (playerHealth == null)
+            playerHealth = FindFirstObjectByType<PlayerHealth>();
+
+        if (playerHealth != null)
+            playerHealth.RestoreFullHealth();
     }
 
     private void InitializeGame()

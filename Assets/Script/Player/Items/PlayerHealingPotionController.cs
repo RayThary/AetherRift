@@ -54,6 +54,7 @@ public class PlayerHealingPotionController : MonoBehaviour
         currentPotionCount = maxPotionCount;
         nextUsableTime = 0f;
         NotifyPotionChanged();
+        Debug.Log($"[Potion] Refilled: {currentPotionCount}", this);
     }
 
     public bool TryUsePotion()
