@@ -73,6 +73,22 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         StoreCurrentHealth();
     }
 
+    public bool Heal(int amount)
+    {
+        if (IsDead || amount <= 0 || currentHealth >= maxHealth)
+            return false;
+
+        currentHealth = Mathf.Min(currentHealth + amount, maxHealth);
+        StoreCurrentHealth();
+        return true;
+    }
+
+    public void RestoreFullHealth()
+    {
+        IsDead = false;
+        SetCurrentHealth(maxHealth);
+    }
+
     public void SetDamageReductionPercent(int value)
     {
         damageReductionPercent = Mathf.Clamp(value, 0, MaxDamageReductionPercent);

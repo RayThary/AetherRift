@@ -17,10 +17,7 @@ public class ShopUI : MonoBehaviour
     [SerializeField] private RelicData[] shopRelics;
     [SerializeField] private ShopItemSlotUI[] itemSlots;
     [SerializeField] private bool regenerateStockOnOpen = true;
-    [SerializeField] private bool restockPurchasedItem = true;
-
-    [Header("Message")]
-    [SerializeField] private TMP_Text messageText;
+    [SerializeField] private bool restockPurchasedItem;
 
     private RelicInstanceData[] currentStock;
     private bool isOpen;
@@ -69,7 +66,6 @@ public class ShopUI : MonoBehaviour
             BuildStock();
 
         SetOpen(true);
-        SetMessage(string.Empty);
         Refresh();
     }
 
@@ -96,43 +92,36 @@ public class ShopUI : MonoBehaviour
 
         if (relicInstance == null)
         {
-            SetMessage("구매할 유물이 없습니다.");
             Refresh();
             return;
         }
 
         if (GameProgressManager.Instance == null)
         {
-            SetMessage("진행 데이터를 찾지 못했습니다.");
             Refresh();
             return;
         }
 
         if (GameProgressManager.Instance.IsRelicInventoryFull())
         {
-            SetMessage("인벤토리가 가득 찼습니다.");
             Refresh();
             return;
         }
 
         if (GameProgressManager.Instance.Currency < relicInstance.Price)
         {
-            SetMessage("골드가 부족합니다.");
             Refresh();
             return;
         }
 
         if (!GameProgressManager.Instance.TryPurchaseRelic(relicInstance))
         {
-            SetMessage("구매에 실패했습니다.");
             Refresh();
             return;
         }
 
         if (SaveManager.Instance != null)
             SaveManager.Instance.SaveGame();
-
-        SetMessage("구매했습니다.");
 
         if (restockPurchasedItem)
             currentStock[slotIndex] = CreateStockInstance(slotIndex);
@@ -221,45 +210,33 @@ public class ShopUI : MonoBehaviour
             }
 
             RelicInstanceData relicInstance = currentStock != null && i < currentStock.Length ? currentStock[i] : null;
-            bool canPurchase = CanPurchase(relicInstance, out string stateMessage);
-            itemSlot.Set(i, shopRelics[i], relicInstance, canPurchase, stateMessage, Purchase);
+
+            if (relicInstance == null)
+            {
+                itemSlot.Clear();
+                continue;
+            }
+
+            bool canPurchase = CanPurchase(relicInstance);
+            itemSlot.Set(i, shopRelics[i], relicInstance, canPurchase, Purchase);
         }
     }
 
-    private bool CanPurchase(RelicInstanceData relicInstance, out string stateMessage)
+    private bool CanPurchase(RelicInstanceData relicInstance)
     {
         if (relicInstance == null)
-        {
-            stateMessage = "판매 없음";
             return false;
-        }
 
         if (GameProgressManager.Instance == null)
-        {
-            stateMessage = "진행 데이터 없음";
             return false;
-        }
 
         if (GameProgressManager.Instance.IsRelicInventoryFull())
-        {
-            stateMessage = "인벤토리 가득 참";
             return false;
-        }
 
         if (GameProgressManager.Instance.Currency < relicInstance.Price)
-        {
-            stateMessage = "골드 부족";
             return false;
-        }
 
-        stateMessage = "구매 가능";
         return true;
-    }
-
-    private void SetMessage(string message)
-    {
-        if (messageText != null)
-            messageText.text = message;
     }
 
     private bool IsValidSlotIndex(int slotIndex)
@@ -271,5 +248,4 @@ public class ShopUI : MonoBehaviour
     {
         return shopRelics != null ? shopRelics.Length : 0;
     }
-
 }

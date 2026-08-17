@@ -22,6 +22,10 @@ public class BattleManager : MonoBehaviour
     [Min(0f)]
     [SerializeField] private float battleStartDelay = 1f;
 
+    [Header("Player Battle Setup")]
+    [SerializeField] private bool restorePlayerHealthOnStart = true;
+    [SerializeField] private bool refillHealingPotionsOnStart = true;
+
     [Header("Result")]
     [SerializeField] private GameObject clearPanel;
     [Min(0f)]
@@ -82,6 +86,7 @@ public class BattleManager : MonoBehaviour
         }
 
         playerHealth.Died += HandlePlayerDied;
+        SetupPlayerForBattle();
 
         battleState = BattleState.Playing;
         StartCoroutine(StartBattleAfterDelay());
@@ -93,6 +98,20 @@ public class BattleManager : MonoBehaviour
             return;
 
         dungeonData = GameManager.Instance.SelectedDungeonData;
+    }
+
+    private void SetupPlayerForBattle()
+    {
+        if (playerHealth == null)
+            return;
+
+        if (restorePlayerHealthOnStart)
+            playerHealth.RestoreFullHealth();
+
+        PlayerHealingPotionController healingPotionController = playerHealth.GetComponent<PlayerHealingPotionController>();
+
+        if (refillHealingPotionsOnStart && healingPotionController != null)
+            healingPotionController.RefillPotions();
     }
 
     private void OnDestroy()
